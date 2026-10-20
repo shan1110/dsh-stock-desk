@@ -260,7 +260,8 @@ const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, Quote
   pnlOf, sortQuotes, PAGE_SIZE, dir,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
-  desk, DeskPage, DeskButton, Pill, SettingsTab, Settings, pillFlag, sectorHint } = mod.__test ?? {};
+  desk, DeskPage, DeskButton, Pill, SettingsTab, Settings, pillFlag, sectorHint,
+  PillView, isPillClick, nextIndexCode, heldRows, pillAnchor, swipeStep } = mod.__test ?? {};
 check('导出了自检入口 __test',
   Boolean(QuoteDetail && QuoteTable && IndexStrip && fieldText && positionRows
     && BreadthBar && LimitGrid && BoardGrid && BoardDrill && desk && DeskPage && DeskButton && Pill));
@@ -2366,6 +2367,173 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   } else {
     console.log('  SKIP  所属板块的用例（没有 mountLive 运行时）');
   }
+}
+
+// ---- 药丸展开成操作栏：持有股 + 换指数 ------------------------------------------
+// 药丸原来只有「拖到哪」这一个动作。加了点击展开之后，两个手势共用同一条 pointer 序列，
+// 最容易错的地方是「拖完顺手弹出面板」和「面板里的合计多算/少算一只」——
+// 这两样在浏览器里都要点好几次才看得出来，所以逻辑抽成纯函数先钉死。
+{
+  // 按下 → 抬起：位移小算点击，位移大算拖动，按久了算长按（长按松手不该弹面板）
+  check('药丸：原地按一下算点击', isPillClick({ x: 100, y: 100, t: 1000 }, { x: 102, y: 99, t: 1200 }) === true, '');
+  check('药丸：挪了 30px 算拖动，不弹面板',
+    isPillClick({ x: 100, y: 100, t: 1000 }, { x: 130, y: 100, t: 1200 }) === false, '');
+  check('药丸：按住 2 秒再松手算长按，不弹面板',
+    isPillClick({ x: 100, y: 100, t: 1000 }, { x: 100, y: 100, t: 3000 }) === false, '');
+  check('药丸：没有按下记录时不算点击', isPillClick(null, { x: 1, y: 1, t: 1 }) === false, '');
+
+  const CAT = [{ code: 'sh000001' }, { code: 'sz399001' }, { code: 'sz399006' }];
+  check('药丸：› 切到下一个指数', nextIndexCode(CAT, 'sh000001', 1) === 'sz399001', nextIndexCode(CAT, 'sh000001', 1));
+  check('药丸：‹ 切到上一个指数', nextIndexCode(CAT, 'sz399001', -1) === 'sh000001', nextIndexCode(CAT, 'sz399001', -1));
+  // 两头循环：在最后一个上继续往后要回到第一个，不能卡住
+  check('药丸：最后一个往后循环回第一个', nextIndexCode(CAT, 'sz399006', 1) === 'sh000001', nextIndexCode(CAT, 'sz399006', 1));
+  check('药丸：第一个往前循环到最后一个', nextIndexCode(CAT, 'sh000001', -1) === 'sz399006', nextIndexCode(CAT, 'sh000001', -1));
+  check('药丸：当前指数不在目录里就落到第一个（不是第二个）',
+    nextIndexCode(CAT, 'sh999999', 1) === 'sh000001', nextIndexCode(CAT, 'sh999999', 1));
+  check('药丸：目录为空时返回 null，不抛错', nextIndexCode([], 'sh000001', 1) === null, '');
+
+  // 持仓：贵州茅台 + 半导体 ETF 勾了持有；儒意电影没勾；
+  // sz002600 勾了持有但不在自选表里 —— 没有行情可取，只能计数提示
+  const POS = {
+    sh600519: { held: true, cost: 1300, shares: 100 },
+    sz159558: { held: true, cost: 0.9, shares: 1000 },
+    sz002739: { held: false },
+    sz002600: { held: true },
+  };
+  const ITEMS = [
+    { code: 'sh600519', name: '贵州茅台', kind: 'stock', fields: { price: 1324.52, prevClose: 1300, changePct: 1.89 } },
+    { code: 'sz159558', name: '半导体设备ETF易方达', kind: 'ETF', fields: { price: 0.891, prevClose: 0.88, changePct: 1.25 } },
+    { code: 'sz002739', name: '儒意电影', kind: 'stock', fields: { price: 8.3, prevClose: 8.39, changePct: -1.07 } },
+  ];
+  const held = heldRows(ITEMS, POS, '2026-10-20');
+  check('药丸：只把勾了「持有」的票列出来', held.rows.length === 2, held.rows.map((r) => r.q.name).join(','));
+  check('药丸：没勾持有的票不列（儒意电影）',
+    !held.rows.some((r) => r.q.code === 'sz002739'), held.rows.map((r) => r.q.code).join(','));
+  check('药丸：当日盈亏按昨收算', Math.abs(held.rows[0].todayPnl - 2452) < 1e-9, String(held.rows[0].todayPnl));
+  check('药丸：持有但不在自选的票单独计数', held.missing === 1, String(held.missing));
+  check('药丸：没有持仓配置时既不列行也不报错',
+    heldRows(ITEMS, undefined, '2026-10-20').rows.length === 0 && heldRows(ITEMS, undefined, '2026-10-20').missing === 0, '');
+
+  // 面板朝哪边弹：拖到屏幕上方要往下弹，否则被切掉一截
+  check('药丸：在屏幕上半区时面板往下弹', pillAnchor({ top: 100, left: 100, width: 200 }, 1400).vertical === 'down', '');
+  check('药丸：在屏幕下半区时面板往上弹', pillAnchor({ top: 700, left: 100, width: 200 }, 1400).vertical === 'up', '');
+  check('药丸：在左半边时面板左对齐', pillAnchor({ top: 700, left: 100, width: 200 }, 1400).align === 'left', '');
+  check('药丸：在右半边时面板右对齐', pillAnchor({ top: 700, left: 1000, width: 200 }, 1400).align === 'right', '');
+  check('药丸：没量到位置时给默认的「上 + 右」', JSON.stringify(pillAnchor(null, 1400)) === '{"vertical":"up","align":"right"}', '');
+
+  // 滑动换指数：往左滑 = 下一个。竖着划要当没发生，否则想滚页面会被换掉指数
+  check('药丸：往左滑是下一个指数', swipeStep(-60, 4) === 1, String(swipeStep(-60, 4)));
+  check('药丸：往右滑是上一个指数', swipeStep(60, -4) === -1, String(swipeStep(60, -4)));
+  check('药丸：竖着划不算滑动', swipeStep(10, -80) === 0, String(swipeStep(10, -80)));
+  check('药丸：斜着划但横向不占主导也不算', swipeStep(-40, 50) === 0, String(swipeStep(-40, 50)));
+  check('药丸：位移太小的轻点不算滑动', swipeStep(-8, 2) === 0, String(swipeStep(-8, 2)));
+  check('药丸：取到非数字位移时按没发生处理', swipeStep(undefined, 0) === 0, String(swipeStep(undefined, 0)));
+}
+
+const mountPill = globalThis.__mountLive;
+if (mountPill && PillView) {
+  const PILL_DATA = {
+    at: 1792392256809,
+    indexCatalog: [
+      { code: 'sh000001', name: '上证指数' },
+      { code: 'sz399001', name: '深证成指' },
+      { code: 'sz399006', name: '创业板指' },
+    ],
+    parts: {
+      indices: {
+        items: [
+          { code: 'sh000001', name: '上证指数', fields: { price: 3734.33, changePct: 0.49 } },
+          { code: 'sz399001', name: '深证成指', fields: { price: 11805.2, changePct: -0.31 } },
+        ],
+      },
+      watchlist: {
+        items: [
+          { code: 'sh600519', name: '贵州茅台', kind: 'stock', time: '20261020140000',
+            fields: { price: 1324.52, prevClose: 1300, changePct: 1.89 } },
+          { code: 'sz159558', name: '半导体设备ETF易方达', kind: 'ETF', time: '20261020140000',
+            fields: { price: 0.891, prevClose: 0.88, changePct: 1.25 } },
+          { code: 'sz002739', name: '儒意电影', kind: 'stock', time: '20261020140000',
+            fields: { price: 8.3, prevClose: 8.39, changePct: -1.07 } },
+        ],
+      },
+    },
+    config: {
+      pill: { indexCode: 'sh000001' },
+      positions: {
+        sh600519: { held: true, cost: 1300, shares: 100 },
+        sz159558: { held: true, cost: 0.9, shares: 1000 },
+        sz002739: { held: false },
+        sz002600: { held: true },
+      },
+    },
+  };
+
+  // 收起时不画面板：否则药丸会一直占着一整块地方，挡住页面
+  const shut = await mountPill(entry, 'PillView', { data: PILL_DATA, code: 'sh000001', open: false, onStep() {}, onHide() {} });
+  check('药丸收起时不画面板', shut.all((n) => n.props?.className === 'skd-pillcard').length === 0, '');
+  check('药丸收起时仍然显示指数名与点位',
+    strings(shut.tree).includes('上证指数') && strings(shut.tree).some((t) => t.includes('3734.33')), '');
+
+  const steps = [];
+  const m = await mountPill(entry, 'PillView', {
+    data: PILL_DATA, code: 'sh000001', open: true, anchor: { vertical: 'down', align: 'left' },
+    onStep: (d) => steps.push(d), onHide() {},
+  });
+  const card = m.all((n) => String(n.props?.className ?? '').startsWith('skd-pillcard'));
+  check('药丸展开后画出面板', card.length === 1, String(card.length));
+  check('药丸面板的位置由 pillAnchor 决定（往下、左对齐）',
+    String(card[0]?.props?.className).includes('skd-pillcard-down')
+    && String(card[0].props.className).includes('skd-pillcard-left'),
+    String(card[0]?.props?.className));
+  const rowEls = m.all((n) => n.props?.className === 'skd-pc-row');
+  check('面板里只列两只持有的票', rowEls.length === 2, String(rowEls.length));
+  const cardText = strings(card[0] ?? {}).join('|');
+  check('面板里有持有的票名', cardText.includes('贵州茅台') && cardText.includes('半导体设备ETF'), cardText.slice(0, 80));
+  check('面板里没有没勾持有的票', !cardText.includes('儒意电影'), cardText.slice(0, 80));
+  check('面板里的 ETF 价格保留 3 位小数', cardText.includes('0.891'), '');
+  check('面板里每只票给了当日盈亏', cardText.includes('+2,452.00') && cardText.includes('+11.00'), '');
+  check('面板给了持有合计', cardText.includes('+2,463.00'), '');
+  check('面板说明了还有几只持有不在自选', /1\s*只不在自选/.test(cardText), cardText.slice(-40));
+  check('面板里的大盘和药丸是同一个指数（上证指数）',
+    cardText.includes('上证指数') && strings(m.tree).filter((t) => t === '上证指数').length >= 2, '');
+
+  // 箭头：点 ‹ 传 -1、点 › 传 +1。传错方向的话用户会觉得「左右反了」
+  const prevBtn = m.all((n) => n.props?.['data-role'] === 'prev')[0];
+  const nextBtn = m.all((n) => n.props?.['data-role'] === 'next')[0];
+  await m.click(prevBtn);
+  await m.click(nextBtn);
+  check('面板的两个箭头各自把方向传出去', JSON.stringify(steps) === '[-1,1]', JSON.stringify(steps));
+
+  // 滑动：面板头部右滑 60px 切到上一个。桩件不走 React 的事件系统，
+  // 所以直接调那两个 props —— 但它验的正是「位移算出来的方向对不对」
+  const idx = m.all((n) => n.props?.className === 'skd-pc-idx')[0];
+  const fakeTarget = { dataset: {} };
+  idx.props.onPointerDown({ currentTarget: fakeTarget, clientX: 200, clientY: 50 });
+  idx.props.onPointerUp({ currentTarget: fakeTarget, clientX: 260, clientY: 52 });
+  check('面板头部滑动也能换指数（右滑 = 上一个）',
+    JSON.stringify(steps) === '[-1,1,-1]', JSON.stringify(steps));
+
+  // 换到深证成指：面板与药丸要一起跟着变，不能只变一半
+  const m2 = await mountPill(entry, 'PillView', {
+    data: PILL_DATA, code: 'sz399001', open: true, anchor: { vertical: 'up', align: 'right' },
+    onStep() {}, onHide() {},
+  });
+  const t2 = strings(m2.tree);
+  check('换指数后药丸和面板都显示新指数', t2.filter((s) => s === '深证成指').length >= 2, t2.join('|').slice(0, 60));
+  check('换指数后点位与涨跌幅也换成新指数的',
+    t2.some((s) => s.includes('11805.20')) && t2.some((s) => s.includes('-0.31')), t2.join('|').slice(0, 80));
+
+  // 一只都没勾持有：要给一句话说清怎么让它有内容，而不是一个空白面板
+  const empty = await mountPill(entry, 'PillView', {
+    data: { ...PILL_DATA, config: { ...PILL_DATA.config, positions: {} } },
+    code: 'sh000001', open: true, onStep() {}, onHide() {},
+  });
+  const emptyText = strings(empty.tree).join('|');
+  check('一只持有都没有时给出提示而不是空面板',
+    empty.all((n) => n.props?.className === 'skd-pc-empty').length === 1 && /勾/.test(emptyText), emptyText.slice(0, 60));
+  check('一只持有都没有时不画合计行', empty.all((n) => n.props?.className === 'skd-pc-sum').length === 0, '');
+} else {
+  console.log('  SKIP  药丸操作栏的用例（没有 mountLive 运行时）');
 }
 
 // ---- 结论 -----------------------------------------------------------------

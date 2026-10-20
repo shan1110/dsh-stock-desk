@@ -198,6 +198,15 @@ window.__ModuleLoader__.load({
       pillShow: "显示药丸",
       hintPillShow: "关掉药丸后回到这里重新打开。药丸是页面右上角那个可拖动的小条，显示一个指数和自选涨跌家数。",
       hidePill: "隐藏药丸（可在设置页重新打开）",
+      pillOpen: "点一下展开：持有股的涨跌 + 换指数；按住拖动改位置",
+      pillHeld: "持有",
+      pillUnit: "只",
+      pillTotal: "合计",
+      pillNoHeld: "自选里还没有勾「持有」的票 —— 在自选表里勾上「持有」，这里就会列出来",
+      pillNotInList: "只不在自选，未计入",
+      pillPrev: "上一个指数（←）",
+      pillNext: "下一个指数（→）",
+      pillFoot: "左右滑动或 ← → 换指数 · 点药丸收起",
       save: "保存",
       saved: "已保存",
       remove: "移除",
@@ -423,6 +432,15 @@ window.__ModuleLoader__.load({
       pillShow: "Show the pill",
       hintPillShow: "Turn it back on here after closing it. The pill is the draggable strip in the top-right corner showing one index plus the watchlist up/down counts.",
       hidePill: "Hide the pill (turn it back on in settings)",
+      pillOpen: "Click to expand: holdings today's move and index switch; press and drag to move it",
+      pillHeld: "Holding",
+      pillUnit: "",
+      pillTotal: "Total",
+      pillNoHeld: "No watchlist stock is marked as held yet — tick \"held\" in the watchlist and it shows up here",
+      pillNotInList: "held stock(s) not in the watchlist, not counted",
+      pillPrev: "Previous index (←)",
+      pillNext: "Next index (→)",
+      pillFoot: "Swipe left/right or ← → to switch index · click the pill to close",
       save: "Save",
       saved: "Saved",
       remove: "Remove",
@@ -792,14 +810,44 @@ window.__ModuleLoader__.load({
 /* 药丸：常驻在页面上，不挡内容，可拖动 */
 /* shell.overlay 整层是 click-through，目录原文是 entries opt back into pointer events。
    不显式打开的话，药丸看得见但点不动、拖不动、也关不掉 —— 整层把指针事件全漏过去了。 */
-.skd-pill{position:fixed;z-index:60;pointer-events:auto;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;
+.skd-pill{position:fixed;z-index:60;pointer-events:auto;right:18px;bottom:18px;
   padding:6px 11px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;
   background:var(--dsw-alias-bg-overlay);box-shadow:0 6px 20px rgba(0,0,0,.2);cursor:grab;
   font-size:12.5px;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;user-select:none}
+/* 展开的面板是绝对定位的，所以那一排内容单独包一层 flex：
+   药丸本身只管定位与外壳，如果它同时是 flex 容器，面板会挤进来占一个格子 */
+.skd-pill-main{display:flex;align-items:center;gap:9px}
 .skd-pill:active{cursor:grabbing}
 .skd-pill-n{color:var(--skd-dim);font-size:11.5px}
 .skd-pill-x{appearance:none;border:0;background:none;color:var(--skd-dim);cursor:pointer;
   font:inherit;font-size:13px;line-height:1;padding:0 1px}
+/* 药丸展开后的操作栏：大盘 + 持有股的当日涨跌。
+   它挂在药丸内部（absolute），所以把药丸拖到哪面板就跟到哪，不用第二套定位逻辑 */
+.skd-pillcard{position:absolute;width:340px;max-width:calc(100vw - 36px);
+  padding:8px 10px 7px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;
+  background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 32px rgba(0,0,0,.28);
+  cursor:default;color:var(--dsw-alias-label-primary);font-size:12.5px}
+.skd-pillcard-up{bottom:calc(100% + 8px)}
+.skd-pillcard-down{top:calc(100% + 8px)}
+.skd-pillcard-right{right:0}
+.skd-pillcard-left{left:0}
+.skd-pc-head{display:flex;align-items:center;gap:4px;padding-bottom:6px;
+  border-bottom:1px solid var(--dsw-alias-border-l2)}
+.skd-pc-arrow{appearance:none;border:0;background:none;color:var(--skd-dim);cursor:pointer;
+  font:inherit;font-size:15px;line-height:1;padding:2px 7px;border-radius:6px}
+.skd-pc-arrow:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.skd-pc-idx{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;min-width:0}
+.skd-pc-idxname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.skd-pc-sum{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 2px 3px;color:var(--skd-dim);font-size:11.5px}
+.skd-pc-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;
+  padding:3px 2px}
+.skd-pc-rn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.skd-pc-rp,.skd-pc-rc{text-align:right;min-width:52px}
+.skd-pc-rt{text-align:right;min-width:78px}
+.skd-pc-empty{padding:10px 2px;color:var(--skd-dim)}
+.skd-pc-foot{display:flex;justify-content:space-between;gap:8px;padding-top:6px;
+  border-top:1px solid var(--dsw-alias-border-l2);color:var(--skd-dim);font-size:11px}
 .skd-s-btn{display:flex;align-items:center;gap:8px;width:100%;appearance:none;border:0;background:none;
   font:inherit;color:inherit;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
 .skd-s-btn:hover{background:var(--dsw-alias-bg-layer-2)}
@@ -3629,11 +3677,213 @@ window.__ModuleLoader__.load({
         h("span", null, T("title")));
     }
 
+    /** 按下到抬起在这两个阈值内才算「点击」，否则算拖动。手指一抖就既挪了位置又弹出面板，很难用 */
+    const PILL_CLICK_MS = 450;
+    const PILL_CLICK_PX = 6;
+    /** 横向滑动换指数的最小位移：太小会把「想点一下」误判成换指数 */
+    const PILL_SWIPE_PX = 32;
+
+    /**
+     * 这一次按下+抬起是「点击」还是「拖动」。
+     *
+     * 抽成纯函数是因为它决定药丸的两个核心手势，而 pointer 事件在自检里最难合成；
+     * 一旦阈值写错（比如只看时间不看位移），拖动结束时会顺带弹出面板，
+     * 而这种错只有在真机上手拖时才看得见。
+     *
+     * @param {{x:number,y:number,t:number}} down 按下时的位置与时间戳
+     * @param {{x:number,y:number,t:number}} up 抬起时的位置与时间戳
+     * @returns {boolean} true = 点击（不动位置），false = 拖动
+     */
+    function isPillClick(down, up) {
+      if (!down || !up) return false;
+      if (!(up.t - down.t <= PILL_CLICK_MS)) return false;
+      return Math.abs(up.x - down.x) <= PILL_CLICK_PX && Math.abs(up.y - down.y) <= PILL_CLICK_PX;
+    }
+
+    /**
+     * 指数的上一个 / 下一个，两头循环。
+     *
+     * 目录里找不到当前代码时直接落到第一个：用户可能把配置里的指数换成了目录以外的代码，
+     * 这时按下标 -1 再 +1 会得到第二个，看起来像跳过了一个。
+     *
+     * @param {Array<{code:string}>} catalog 指数目录
+     * @param {string} code 当前指数
+     * @param {number} step 正数向后、负数向前
+     * @returns {string|null} 新代码；目录为空时 null
+     */
+    function nextIndexCode(catalog, code, step) {
+      const list = (catalog ?? []).filter((c) => c && c.code);
+      if (list.length === 0) return null;
+      const i = list.findIndex((c) => c.code === code);
+      if (i < 0) return list[0].code;
+      const n = list.length;
+      return list[((i + step) % n + n) % n].code;
+    }
+
+    /**
+     * 自选里的「持有」股，带上当日盈亏。
+     *
+     * missing 是勾了持有、但不在自选表里的票 —— 那些票没有行情可取，列不出来。
+     * 不提示的话用户会以为合计少算了，而实际是那只票根本没进自选。
+     *
+     * @param {Array<object>} items 自选表的行情行
+     * @param {object} positions 配置里的持仓，按代码索引
+     * @param {string} today yyyy-mm-dd
+     * @returns {{rows: Array<object>, missing: number}}
+     */
+    function heldRows(items, positions, today) {
+      const rows = [];
+      const seen = new Set();
+      for (const q of items ?? []) {
+        const code = q?.code;
+        if (!code) continue;
+        seen.add(code);
+        const one = positions?.[code];
+        if (one?.held !== true) continue;
+        rows.push({ q, one, ...pnlOf(q, one, today) });
+      }
+      let missing = 0;
+      for (const code of Object.keys(positions ?? {})) {
+        if (positions[code]?.held === true && !seen.has(code)) missing += 1;
+      }
+      return { rows, missing };
+    }
+
+    /**
+     * 横向滑动换指数。
+     *
+     * 只认「横向占主导」的位移：在面板上竖着划想滚页面时，如果也按横向处理，
+     * 用户会莫名其妙地被换掉指数。往左滑 = 看下一个，和翻卡片的直觉一致。
+     *
+     * @param {number} dx 横向位移（右正左负）
+     * @param {number} dy 纵向位移
+     * @returns {-1|0|1} -1 上一个、0 不切换、1 下一个
+     */
+    function swipeStep(dx, dy) {
+      if (!Number.isFinite(dx) || !Number.isFinite(dy)) return 0;
+      if (Math.abs(dx) < PILL_SWIPE_PX) return 0;
+      if (Math.abs(dx) <= Math.abs(dy)) return 0;
+      return dx < 0 ? 1 : -1;
+    }
+
+    /**
+     * 面板往上弹还是往下弹、靠左还是靠右。
+     *
+     * 药丸能拖到屏幕任何地方，固定往上弹的话拖到顶部就被切掉一半。
+     * 阈值 260 是面板常见高度（头 + 两三行 + 脚）留出的余量，不是精确测量 ——
+     * 面板高度随持有只数变，宁可早一点翻到下面。
+     *
+     * @param {{top:number,left:number,width:number}|null} rect 药丸当时的矩形
+     * @param {number} vw 视口宽
+     * @returns {{vertical:"up"|"down", align:"left"|"right"}}
+     */
+    function pillAnchor(rect, vw) {
+      if (!rect) return { vertical: "up", align: "right" };
+      return {
+        vertical: rect.top > 260 ? "up" : "down",
+        align: rect.left + rect.width / 2 > (vw ?? 0) / 2 ? "right" : "left",
+      };
+    }
+
+    /**
+     * 药丸的样子：一个指数 + 自选涨跌家数，展开后是能换指数的操作栏。
+     *
+     * 只接 props、不碰 store 与手势，是为了让自检能挂一份假数据直接看渲染结果 ——
+     * 合成一串 pointer 事件去测「面板里有没有那两行」又脆又难读。
+     *
+     * @param {object} p data/code/open/anchor/onStep/onHide
+     */
+    function PillView(p) {
+      const { data, code, open, anchor, onStep, onHide } = p;
+      const cat = (data?.indexCatalog ?? []).find((c) => c.code === code);
+      const q = (data?.parts?.indices?.items ?? []).find((x) => x.code === code);
+      const wl = data?.parts?.watchlist?.items ?? [];
+      const up = wl.filter((x) => nOr(F(x).changePct) > 0).length;
+      const dn = wl.filter((x) => nOr(F(x).changePct) < 0).length;
+      const { rows, missing } = heldRows(wl, data?.config?.positions, todayKey());
+      // 有一只算不出当日盈亏就整列不显示合计：2 只的和冒充 3 只的合计比不显示更糟
+      const total = rows.length > 0 && rows.every((r) => r.todayPnl !== null)
+        ? rows.reduce((a, r) => a + r.todayPnl, 0) : null;
+      const heldCount = T("pillUnit") ? `${T("pillHeld")} ${rows.length} ${T("pillUnit")}` : `${T("pillHeld")} ${rows.length}`;
+
+      return h("div", { className: "skd-pill-main" },
+        open ? h("div", {
+          className: `skd-pillcard skd-pillcard-${anchor?.vertical ?? "up"} skd-pillcard-${anchor?.align ?? "right"}`,
+          // 面板里的按下不能冒泡给药丸的拖动逻辑，否则在面板上选字会把整块拖走
+          onPointerDown: (e) => e.stopPropagation(),
+        },
+        h("div", { className: "skd-pc-head" },
+          h("button", {
+            className: "skd-pc-arrow", "data-role": "prev", type: "button", title: T("pillPrev"),
+            onClick: () => onStep(-1),
+          }, "\u2039"),
+          h("span", {
+            className: "skd-pc-idx",
+            // 记在 dataset 上而不是组件状态里：这里没有 hooks，函数组件每次渲染都是新闭包，
+            // 用普通变量接不住「按下」那一刻的值
+            onPointerDown: (e) => {
+              e.currentTarget.dataset.x = String(e.clientX);
+              e.currentTarget.dataset.y = String(e.clientY);
+            },
+            onPointerUp: (e) => {
+              const x0 = Number(e.currentTarget.dataset.x);
+              const y0 = Number(e.currentTarget.dataset.y);
+              if (!Number.isFinite(x0) || !Number.isFinite(y0)) return;
+              const d = swipeStep(e.clientX - x0, e.clientY - y0);
+              if (d !== 0) onStep(d);
+            },
+          },
+            h("span", { className: "skd-pc-idxname" }, cat?.name ?? "—"),
+            h("span", { className: `skd-num ${dir(F(q).changePct)}`, style: { fontWeight: 600 } },
+              q ? num(F(q).price) : "—"),
+            h("span", { className: dir(F(q).changePct) }, q ? pct(F(q).changePct) : "—")),
+          h("button", {
+            className: "skd-pc-arrow", "data-role": "next", type: "button", title: T("pillNext"),
+            onClick: () => onStep(1),
+          }, "\u203a")),
+        rows.length === 0
+          ? h("div", { className: "skd-pc-empty" }, T("pillNoHeld"))
+          : h("div", null,
+            h("div", { className: "skd-pc-sum" },
+              h("span", null, heldCount),
+              h("span", { className: total === null ? "skd-flat" : dir(total) },
+                `${T("pillTotal")} ${money(total)}`)),
+            // 展开成兄弟节点而不是塞一个数组：数组子节点在 React 里要 key，
+            // 在自检的桩件里连遍历都进不去（它只走 children，不摊平数组）
+            ...rows.map((r) => h("div", { className: "skd-pc-row", key: r.q.code },
+              h("span", { className: "skd-pc-rn", title: r.q.name ?? r.q.code }, r.q.name ?? r.q.code),
+              h("span", { className: "skd-pc-rp" }, fieldText("price", r.price, r.q) ?? "—"),
+              h("span", { className: `skd-pc-rc ${dir(F(r.q).changePct)}` }, pct(F(r.q).changePct)),
+              h("span", { className: `skd-pc-rt ${r.todayPnl === null ? "skd-flat" : dir(r.todayPnl)}` },
+                r.todayPnl === null ? "—" : money(r.todayPnl))))),
+        h("div", { className: "skd-pc-foot" },
+          missing > 0
+            ? h("span", { title: T("pillNotInList") }, `${missing} ${T("pillNotInList")}`)
+            : h("span", null, ""),
+          h("span", null, T("pillFoot"))))
+          : null,
+        h("span", { className: "skd-pill-n" }, cat?.name ?? "—"),
+        // 价格也跟着涨跌上色：写死红色时，跌的指数在药丸里是个红数字，
+        // 一眼看过去就是「跌了却在涨」，和旁边绿色的百分比自相矛盾
+        h("span", { className: `skd-num ${dir(F(q).changePct)}`, style: { fontWeight: 600 } },
+          q ? num(F(q).price) : "—"),
+        h("span", { className: dir(F(q).changePct) }, q ? pct(F(q).changePct) : "—"),
+        h("span", { className: "skd-pill-n" }, `↑${up} ↓${dn}`),
+        h("button", {
+          // 它只是隐藏，不是删掉：标题写「移除」会让人以为这东西没了
+          className: "skd-pill-x", "data-role": "close", type: "button", title: T("hidePill"),
+          onClick: onHide,
+        }, "\u00d7"));
+    }
+
     /**
      * 常驻药丸。
      *
      * 位置写在 localStorage 里而不是宿主配置里：它属于「这台浏览器上的摆放」，
      * 换台机器不该跟着走，也不该污染 agent 会读的那份自选股配置。
+     *
+     * 手势分工：按下后位移在阈值内抬起 = 展开/收起面板；超过阈值 = 拖动改位置。
+     * 两者共用同一条 pointer 序列，所以拖动**不能**顺带弹面板 —— 见 isPillClick。
      */
     function Pill() {
       const { data } = useDesk();
@@ -3646,52 +3896,89 @@ window.__ModuleLoader__.load({
       // 隐藏状态与设置页共用同一个 store：在设置里勾上「显示药丸」当场就回来
       const [hidden, setHidden] = React.useState(() => pillFlag.get());
       React.useEffect(() => pillFlag.subscribe(setHidden), []);
+      const [open, setOpen] = React.useState(false);
+      const [anchor, setAnchor] = React.useState(null);
+      /**
+       * 刚点过箭头的那次切换先记在这里，不等 /config 往返。
+       * 轮询 10 秒一次，只看宿主回值的话点了箭头要等好几秒才有反应，像没点上。
+       */
+      const [picked, setPicked] = React.useState(null);
       const drag = React.useRef(null);
+      const downAt = React.useRef(null);
+      const root = React.useRef(null);
+      // 键盘与箭头都走同一条切换路径；effect 里要用到它，所以先摆一个 ref 出来
+      const stepRef = React.useRef(null);
+
+      // 展开时才挂这两个监听：Esc 收起、点面板外面也收起
+      React.useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => {
+          if (e.key === "Escape") { setOpen(false); return; }
+          if (e.key === "ArrowLeft") stepRef.current?.(-1);
+          if (e.key === "ArrowRight") stepRef.current?.(1);
+        };
+        const onDoc = (e) => { if (!root.current?.contains?.(e.target)) setOpen(false); };
+        document.addEventListener("keydown", onKey);
+        document.addEventListener("pointerdown", onDoc, true);
+        return () => {
+          document.removeEventListener("keydown", onKey);
+          document.removeEventListener("pointerdown", onDoc, true);
+        };
+      }, [open]);
 
       if (hidden) return null;
       // 药丸显示哪个指数跟着配置走，没配置就取目录里的第一个
-      const code = data?.config?.pill?.indexCode ?? data?.indexCatalog?.[0]?.code ?? "sh000001";
-      const cat = (data?.indexCatalog ?? []).find((c) => c.code === code);
-      const q = (data?.parts?.indices?.items ?? []).find((x) => x.code === code);
-      const wl = data?.parts?.watchlist?.items ?? [];
-      const up = wl.filter((x) => nOr(F(x).changePct) > 0).length;
-      const dn = wl.filter((x) => nOr(F(x).changePct) < 0).length;
+      const code = picked ?? data?.config?.pill?.indexCode ?? data?.indexCatalog?.[0]?.code ?? "sh000001";
 
       const style = pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : undefined;
+
+      const step = (delta) => {
+        const next = nextIndexCode(data?.indexCatalog, code, delta);
+        if (!next || next === code) return;
+        setPicked(next);
+        const cfg = data?.config;
+        if (!cfg) return;
+        api("/config", { config: { ...cfg, pill: { ...(cfg.pill ?? {}), indexCode: next } } })
+          // 存不下也只是一觉醒来回到原指数：界面当场已经切了，不为此弹错误
+          .catch(() => {});
+      };
+      stepRef.current = step;
 
       const onDown = (e) => {
         if (e.target?.dataset?.role === "close") return;
         const box = e.currentTarget.getBoundingClientRect();
         drag.current = { dx: e.clientX - box.left, dy: e.clientY - box.top };
+        downAt.current = { x: e.clientX, y: e.clientY, t: Date.now() };
         e.currentTarget.setPointerCapture?.(e.pointerId);
       };
       const onMove = (e) => {
         if (!drag.current) return;
-        const p = { x: `${e.clientX - drag.current.dx}px`, y: `${e.clientY - drag.current.dy}px` };
-        setPos(p);
+        setPos({ x: `${e.clientX - drag.current.dx}px`, y: `${e.clientY - drag.current.dy}px` });
       };
-      const onUp = () => {
+      const onUp = (e) => {
         if (!drag.current) return;
         drag.current = null;
+        const click = isPillClick(downAt.current, { x: e.clientX, y: e.clientY, t: Date.now() });
+        downAt.current = null;
+        if (click) {
+          // 点击不落盘位置：它本来就没动，写一次只是多一条无意义的记录
+          if (!open) setAnchor(pillAnchor(e.currentTarget.getBoundingClientRect(), window.innerWidth));
+          setOpen(!open);
+          return;
+        }
         try { window.localStorage.setItem("stock-desk.pill", JSON.stringify(pos)); } catch { /* 存不下就算了 */ }
       };
 
       return h("div", {
+        ref: root,
         className: "skd-root skd-pill", style,
         onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp,
-        title: data?.at ? `${T("snapshot")} ${hhmmss(data.at)}` : "",
+        // 悬停同时给「快照时间」和「怎么用」：只写时间的话，点击能展开这件事
+        // 除了用户自己乱点，没有任何地方告诉他
+        title: [data?.at ? `${T("snapshot")} ${hhmmss(data.at)}` : "", T("pillOpen")]
+          .filter(Boolean).join("\n"),
       },
-      h("span", { className: "skd-pill-n" }, cat?.name ?? "—"),
-      // 价格也跟着涨跌上色：写死红色时，跌的指数在药丸里是个红数字，
-      // 一眼看过去就是「跌了却在涨」，和旁边绿色的百分比自相矛盾
-      h("span", { className: `skd-num ${dir(F(q).changePct)}`, style: { fontWeight: 600 } }, q ? num(F(q).price) : "—"),
-      h("span", { className: dir(F(q).changePct) }, q ? pct(F(q).changePct) : "—"),
-      h("span", { className: "skd-pill-n" }, `↑${up} ↓${dn}`),
-      h("button", {
-        // 它只是隐藏，不是删掉：标题写「移除」会让人以为这东西没了
-        className: "skd-pill-x", "data-role": "close", type: "button", title: T("hidePill"),
-        onClick: () => pillFlag.set(true),
-      }, "\u00d7"));
+      h(PillView, { data, code, open, anchor, onStep: step, onHide: () => pillFlag.set(true) }));
     }
     //#endregion
 
@@ -3835,6 +4122,9 @@ window.__ModuleLoader__.load({
         // desk 是为了让自检能先喂一份数据再渲染。useDesk 读的是 desk.get()，
         // 所以离开这个入口，「药丸显示上证点位 + 涨跌幅 + 涨跌家数」这条验收就只能靠肉眼。
         desk, DeskPage, DeskButton, Pill,
+        // 药丸的两半拆开导出：PillView 接假数据看渲染，其余四个决定手势与切换。
+        // 面板里「持有哪几行、合计多少」纯靠肉眼点一次是验不出来的。
+        PillView, isPillClick, nextIndexCode, heldRows, pillAnchor, swipeStep,
         // 配置页现在有两个入口，独立那个要能单独渲染出来才算数 ——
         // 它自己取 /state，跟整页那条路径不共享状态，整页绿了不代表它也绿。
         SettingsTab,

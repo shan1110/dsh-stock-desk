@@ -363,6 +363,29 @@ console.log(`\n【4.4c】GET /sectors —— 自选股的所属板块\n`);
     `${empty.status} ${empty.body?.error ?? ''}`);
 }
 
+console.log(`\n【4.4d】POST /config —— 药丸换指数靠这条写回去\n`);
+// 药丸的左右切换会把新指数写进 config.pill.indexCode。这条路径断了的表现是
+// 「当场切了、刷新又变回上证指数」，而不会有任何报错。
+// 这里用「原值写回」验：既证明写路径认 pill.indexCode，也证明它不会顺手把 positions 抹掉。
+{
+  const before = S.config ?? {};
+  const same = { ...before, pill: { ...(before.pill ?? {}), indexCode: before.pill?.indexCode ?? 'sh000001' } };
+  const res = await fetch(`${BASE}/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config: same }),
+    signal: AbortSignal.timeout(90000),
+  });
+  const body = await res.json().catch(() => null);
+  check('POST /config 原值写回成功', res.status === 200 && body?.ok === true, `${res.status} ${body?.error ?? ''}`);
+  check('写回后 pill.indexCode 还在（没有被 normalize 丢掉）',
+    typeof body?.data?.config?.pill?.indexCode === 'string',
+    String(body?.data?.config?.pill?.indexCode));
+  check('写回后持仓没有被抹掉',
+    JSON.stringify(body?.data?.config?.positions ?? null) === JSON.stringify(before.positions ?? null),
+    brief(body?.data?.config?.positions));
+}
+
 console.log(`\n【4.5】GET /search —— 股票和场内基金都要能搜到\n`);
 {
   const byCode = await get('/search?q=510300');
