@@ -307,6 +307,29 @@ for (const code of ['sh000001', 'sz399006', 'sh000688']) {
     `candles=${k.body?.data?.candles?.length ?? '-'}`);
 }
 
+console.log(`\n【4.4b】GET /avg —— 自选表的周/月均价\n`);
+// 自选表把换手、成交额换成了三条均价。日均价走实时报价的 avgPrice，
+// 周/月走这个接口；它断了的话界面上那两列永远是「—」，而且不会有任何报错。
+{
+  const r = await get('/avg?codes=sh600519,sz300750');
+  const avgs = r.body?.data?.avgs ?? {};
+  check('/avg 两个代码都有结果',
+    r.status === 200 && Object.keys(avgs).length === 2, Object.keys(avgs).join(','));
+  check('/avg 周/月均价都是正数',
+    ['sh600519', 'sz300750'].every((c) => Number(avgs[c]?.week) > 0 && Number(avgs[c]?.month) > 0),
+    ['sh600519', 'sz300750'].map((c) => `${c}=${avgs[c]?.week ?? '-'}/${avgs[c]?.month ?? '-'}`).join(' '));
+  // 周期锚在最新那根日 K 上，周起点必须是周一。写成断言是为了防止哪天改成按本机时钟算 ——
+  // 那样周一早上拿到上周五的数据时，「本周」会是空区间，均价直接变 null
+  check('/avg 的周起点是周一',
+    /^\d{4}-\d{2}-\d{2}$/.test(avgs.sh600519?.weekFrom ?? '')
+    && new Date(`${avgs.sh600519.weekFrom}T00:00:00Z`).getUTCDay() === 1,
+    String(avgs.sh600519?.weekFrom));
+  // 空 codes 必须明确报错：静默返回空对象的话，界面只会显示「—」，看不出是参数错了
+  const empty = await get('/avg?codes=');
+  check('/avg 缺 codes 时明确报错', empty.status !== 200 && Boolean(empty.body?.error),
+    `${empty.status} ${empty.body?.error ?? ''}`);
+}
+
 console.log(`\n【4.5】GET /search —— 股票和场内基金都要能搜到\n`);
 {
   const byCode = await get('/search?q=510300');

@@ -211,6 +211,13 @@ window.__ModuleLoader__.load({
       pct: "涨跌",
       turnover: "换手",
       amount: "成交额",
+      avgDay: "日均价",
+      avgWeek: "周均价",
+      avgMonth: "月均价",
+      hintAvgDay: "今天的成交额加权均价（成交额 ÷ 成交量），腾讯直接给。现价高于它就是今天买的人平均还在赚。",
+      hintAvgWeek: "本周（周一起，含今天）各交易日收盘价按成交量加权。不是 K 线上的「周线」——周线一根只有开高低收和量，没有均价这一项。",
+      hintAvgMonth: "本月（1 号起，含今天）各交易日收盘价按成交量加权。口径同周均价。",
+      avgUnavailable: "周/月均价取不到（日 K 没返回），不是 0",
       volume: "成交量",
       prevClose: "昨收",
       open: "今开",
@@ -424,6 +431,13 @@ window.__ModuleLoader__.load({
       pct: "Chg",
       turnover: "Turn",
       amount: "Amount",
+      avgDay: "Day avg",
+      avgWeek: "Week avg",
+      avgMonth: "Month avg",
+      hintAvgDay: "Today's volume-weighted average price (amount ÷ volume), straight from Tencent. A last price above it means today's buyers are, on average, still in profit.",
+      hintAvgWeek: "This week (from Monday, including today): each day's close weighted by that day's volume. Not the weekly candle — a weekly bar only carries open/high/low/close and volume, no average.",
+      hintAvgMonth: "Same rule as the weekly average, from the 1st of this month.",
+      avgUnavailable: "Weekly/monthly average unavailable (no daily bars returned), not zero",
       volume: "Volume",
       prevClose: "Prev close",
       open: "Open",
@@ -1028,6 +1042,11 @@ window.__ModuleLoader__.load({
         case "pct": return pct(n);
         default: return num(n, PRICE_KEYS.has(key) && q?.kind === "ETF" ? 3 : 2);
       }
+    }
+    /** 周/月均价的显示：与价格同精度（ETF 3 位，其余 2 位）；没取到写「—」，不写 0 */
+    function avgText(v, q) {
+      const n = nOr(v);
+      return n === null ? "—" : num(n, q?.kind === "ETF" ? 3 : 2);
     }
     function hhmmss(ms) {
       const n = nOr(ms);
@@ -1851,7 +1870,7 @@ window.__ModuleLoader__.load({
      * 取值统一走 sortVal，键名与表头的 data-key 一一对应 —— 加一列忘了加这里，
      * 表现是点了表头没反应，比报错还难查。
      */
-    const SORT_KEYS = ["name", "held", "price", "changePct", "turnover", "amount",
+    const SORT_KEYS = ["name", "held", "price", "changePct", "avgDay", "avgWeek", "avgMonth",
       "cost", "shares", "todayPnl", "holdPnl"];
 
     function sortVal(it, key) {
@@ -1860,8 +1879,11 @@ window.__ModuleLoader__.load({
         case "held": return it.one?.held === true ? 1 : 0;
         case "price": return nOr(it.f?.price);
         case "changePct": return nOr(it.f?.changePct);
-        case "turnover": return nOr(it.f?.turnover);
-        case "amount": return nOr(it.f?.amount);
+        // 日均价是实时报价里的，周/月是 /avg 后补的；后补的还没到时是 undefined，
+        // 由 sortQuotes 当作「没数据」垫底，不会排到最前面当成 0
+        case "avgDay": return nOr(it.f?.avgPrice);
+        case "avgWeek": return nOr(it.avg?.week);
+        case "avgMonth": return nOr(it.avg?.month);
         case "cost": return nOr(it.one?.cost);
         case "shares": return nOr(it.one?.shares);
         case "todayPnl": return it.todayPnl;
@@ -1904,6 +1926,28 @@ window.__ModuleLoader__.load({
        */
       const [sort, setSort] = React.useState({ key: null, dir: "desc" });
       const [page, setPage] = React.useState(0);
+      /**
+       * 周/月均价是后补的：日均价在实时报价里现成，这两个得按日 K 算，
+       * 一次请求最多 50 只，所以整张自选表一次取完，翻页不用重取。
+       *
+       * 这个 effect 必须在「空列表直接 return」之前 —— 否则 list 变空的那一次渲染
+       * 少调用一个钩子，React 直接抛 rendered fewer hooks than expected。
+       */
+      const [avg, setAvg] = React.useState({});
+      const avgCodes = (Array.isArray(list) ? list : []).map((q) => q?.code).filter(Boolean).join(",");
+      React.useEffect(() => {
+        if (!avgCodes) return undefined;
+        let alive = true;
+        const load = () => api(`/avg?codes=${encodeURIComponent(avgCodes)}`)
+          .then((r) => { if (alive) setAvg(r?.avgs ?? {}); })
+          // 均价拿不到不该干扰主表：那两列显示「—」，价格和盈亏照常
+          .catch(() => { /* 保持上一次的值 */ });
+        load();
+        // 60 秒一次：今天那根日 K 的收盘价盘中一直在变，但没必要跟着 10 秒的行情一起刷 ——
+        // 每 10 秒刷等于 10 秒重算一遍 10 只票的日 K，而均价一分钟才变得出一分钱
+        const t = setInterval(load, 60000);
+        return () => { alive = false; clearInterval(t); };
+      }, [avgCodes]);
 
       if (!Array.isArray(list) || list.length === 0) return h(Msg, { text: T("empty") });
       // 表格渲染时取一次「今天」，整张表用同一个基准，避免逐行调用跨过零点
@@ -1926,10 +1970,10 @@ window.__ModuleLoader__.load({
             nOr(one[field]) === null ? "—" : String(nOr(one[field])));
       };
 
-      // 每行先算好一份「行情 + 持仓 + 盈亏」，排序和渲染都读它
+      // 每行先算好一份「行情 + 持仓 + 盈亏 + 周月均价」，排序和渲染都读它
       const rows = list.map((q) => {
         const one = rowOf(q.code, "pos");
-        return { q, f: F(q), one, ...pnlOf(q, one, today) };
+        return { q, f: F(q), one, avg: avg[q.code], ...pnlOf(q, one, today) };
       });
       const sorted = sortQuotes(rows, sort.key, sort.dir);
       const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
@@ -1976,8 +2020,11 @@ window.__ModuleLoader__.load({
             watch ? th("held", T("held"), "skd-heldcol") : null,
             th("price", T("price")),
             th("changePct", T("pct")),
-            th("turnover", T("turnover")),
-            th("amount", T("amount")),
+            // 换手和成交额换成了三条均价：用户看自选时关心的是「现在这个价相对日均/周均/月均贵不贵」，
+            // 换手、成交额在明细里还在，点开就有
+            th("avgDay", T("avgDay")),
+            th("avgWeek", T("avgWeek")),
+            th("avgMonth", T("avgMonth")),
             // 以下五列只在自选表里出现（持仓 / 监控都属于自选股的属性）
             watch ? th("cost", T("cost")) : null,
             watch ? th("shares", T("shares")) : null,
@@ -2017,8 +2064,17 @@ window.__ModuleLoader__.load({
                 : null)) : null,
           h("td", { className: `skd-num ${dir(f.changePct)}` }, fieldText("price", f.price, q)),
           h("td", { className: `skd-num ${dir(f.changePct)}` }, fieldText("changePct", f.changePct, q)),
-          h("td", { className: "skd-num" }, nOr(f.turnover) === null ? "—" : `${num(f.turnover)}%`),
-          h("td", { className: "skd-num" }, fieldText("amount", f.amount, q)),
+          // 均价 0 只可能是「今天还没有成交」（停牌），写成 0.00 会被读成「均价是 0 元」
+          h("td", { className: "skd-num", title: T("hintAvgDay") },
+            nOr(f.avgPrice) > 0 ? fieldText("avgPrice", f.avgPrice, q) : null),
+          h("td", {
+            className: "skd-num",
+            title: nOr(it.avg?.week) === null ? T("avgUnavailable") : T("hintAvgWeek"),
+          }, avgText(it.avg?.week, q)),
+          h("td", {
+            className: "skd-num",
+            title: nOr(it.avg?.month) === null ? T("avgUnavailable") : T("hintAvgMonth"),
+          }, avgText(it.avg?.month, q)),
           ...(watch ? (() => {
             // 盈亏怎么算的见 pnlOf：这里只取结果，不再算第二遍 ——
             // 表里显示的数与排序用的键出自同一个函数，点表头排出来的顺序才和眼睛看到的对得上

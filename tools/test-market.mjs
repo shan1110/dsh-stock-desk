@@ -2,7 +2,7 @@
  * 组合层自检（开发用）
  * 用法：node tools/test-market.mjs
  */
-import { createMarket, INDEX_CODES } from '../lib/market.js';
+import { createMarket, INDEX_CODES, summarizeAvg, weekStartOf } from '../lib/market.js';
 import { createStore, normalizeConfig, defaultConfig } from '../lib/store.js';
 
 let pass = 0, fail = 0;
@@ -324,6 +324,37 @@ console.log(`        配置将写入 ${info.path}  (规则 ${info.rule})`);
 }
 
 check('配置路径已解析', info.path.endsWith('config.json'));
+
+// 周/月均价：一段固定的日 K，算出来的数可以直接对账
+{
+  const bar = (date, close, volume) => ({ date, close, volume });
+  const bars = [
+    bar('2026-10-12', 100, 10), bar('2026-10-16', 110, 10),
+    bar('2026-10-19', 120, 30), bar('2026-10-20', 130, 10),
+  ];
+  const s = summarizeAvg(bars);
+  // 本周（10-19 起）= (120×30 + 130×10) / 40
+  check('周均价按成交量加权：本周只有两天', Math.abs(s.week - 122.5) < 1e-9, String(s.week));
+  // 本月（10-01 起）= (100×10 + 110×10 + 120×30 + 130×10) / 60
+  check('月均价按成交量加权：整月四天',
+    Math.abs(s.month - 7000 / 60) < 1e-9, String(s.month));
+  check('周起点是周一', s.weekFrom === '2026-10-19' && s.monthFrom === '2026-10-01',
+    `${s.weekFrom} / ${s.monthFrom}`);
+  // 周期锚在最新一根 K 线上，不是本机时钟：周一早上拿到的是上周五的数据，
+  // 按挂钟算「本周」会得到空区间，均价直接变 null
+  const stale = summarizeAvg([bar('2026-10-16', 110, 10)]);
+  check('数据停在周五：周均价仍按那一周算出来，不是 null',
+    stale.week === 110 && stale.weekFrom === '2026-10-12', JSON.stringify(stale));
+
+  check('空数组给出四个 null，不是 0',
+    JSON.stringify(summarizeAvg([])) === JSON.stringify({ week: null, month: null, weekFrom: null, monthFrom: null, bars: 0 }),
+    JSON.stringify(summarizeAvg([])));
+  check('成交量为 0 或缺失的 K 线不参与加权（停牌日不该把均价拉向自己）',
+    summarizeAvg([bar('2026-10-19', 120, 0), bar('2026-10-20', 130, 10)]).week === 130,
+    String(summarizeAvg([bar('2026-10-19', 120, 0), bar('2026-10-20', 130, 10)]).week));
+  check('周起点跨月也按周一对齐（2026-11-01 是周日 → 10-26）',
+    weekStartOf('2026-11-01') === '2026-10-26', weekStartOf('2026-11-01'));
+}
 
 console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);
 process.exitCode = fail === 0 ? 0 : 1;

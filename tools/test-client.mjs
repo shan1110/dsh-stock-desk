@@ -65,6 +65,15 @@ globalThis.document = {
 // createDesk 的轮询会真发请求；这里只验证 apply，不需要行情
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, data: {} }) });
 
+/**
+ * 组件里用 setInterval 每 60 秒补一次周/月均价。Node 里只要还有活着的 interval，
+ * 进程就不会退出 —— 整套断言跑完却卡在最后不返回。桩成「登记但永不自动触发」，
+ * 顺便还能断言「挂载时确实登记了、卸载时确实清了」。
+ */
+const intervals = [];
+globalThis.setInterval = (fn, ms) => { intervals.push({ fn, ms, cleared: false }); return intervals.length; };
+globalThis.clearInterval = (id) => { if (intervals[id - 1]) intervals[id - 1].cleared = true; };
+
 // ---- 加载 -----------------------------------------------------------------
 console.log('客户端半边加载自检\n');
 
@@ -1652,9 +1661,20 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
 }
 
 
-// 自选表的成交额列：这条正是差 10000 倍的那个位置
+// 自选表的均价列：日均价来自实时报价的 avgPrice（就在 fields 里），
+// 周/月是 /avg 后补的，没到之前必须是「—」而不是 0 —— 0 会让人以为均价是 0 元
 const tblText = texts(QuoteTable({ list: [QUOTE_STOCK], watch: false })).join('|');
-check('自选表成交额不差数量级', tblText.includes('45.00 亿'), tblText.slice(0, 200));
+check('自选表日均价用的是实时均价，不是现价', tblText.includes('1338.31'), tblText.slice(0, 260));
+check('表头是日均价 / 周均价 / 月均价',
+  tblText.includes('日均价') && tblText.includes('周均价') && tblText.includes('月均价'),
+  tblText.slice(0, 260));
+// 只看表头的 data-key：标题里那句「成交额加权」是均价口径的解释，不算残留一列
+const thKeys = collectEls(QuoteTable({ list: [QUOTE_STOCK], watch: false }))
+  .filter((n) => n.type === 'button' && n.props?.['data-key']).map((n) => n.props['data-key']);
+check('表头不再有换手 / 成交额两列',
+  !thKeys.includes('turnover') && !thKeys.includes('amount'), thKeys.join(','));
+check('均价三列都能点表头排序',
+  ['avgDay', 'avgWeek', 'avgMonth'].every((k) => thKeys.includes(k)), thKeys.join(','));
 
 const stripText = texts(IndexStrip({ catalog: [{ code: 'sh000001', name: '上证指数' }], quotes: [QUOTE_INDEX] })).join('|');
 check('指数条渲染点位与涨跌幅',
@@ -2174,6 +2194,78 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   check('打开后药丸又能渲染出来', (strings(Pill?.() ?? null)).length > 0);
   check('设置页说明了关掉后回哪里打开', /重新打开/.test(strings(Settings?.({ config: { ui: {}, pill: {} },
     info: { indexCatalog: [] }, save: async () => {}, onMigrate: () => {} }) ?? null).join('|')), '');
+}
+
+// ---- 自选表的均价三列 -------------------------------------------------------
+// 日均价来自实时报价（avgPrice），周/月要按日 K 聚合后再补进来。可判定的四条：
+// 值取对了没有、ETF 保不保留 3 位小数、没数据时是不是「—」、能不能按它排序。
+{
+  if (globalThis.__mountLive) {
+    const tdKey0 = `${todayKey().replace(/-/g, '')}101500`;
+    const mk = (i, avgPrice, kind = 'stock') => ({
+      code: `sh60000${i}`, name: `均价0${i}`, kind, time: tdKey0,
+      fields: { price: 10, prevClose: 10, changePct: 0, avgPrice },
+    });
+    const four = [mk(1, 9.5), mk(2, 10.5), mk(3, null), mk(4, 0.891, 'ETF')];
+    const oldFetch = globalThis.fetch;
+    const seenUrls = [];
+    globalThis.fetch = async (url) => {
+      seenUrls.push(String(url));
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          data: String(url).includes('/avg')
+            ? {
+              avgs: {
+                sh600001: { week: 9.8, month: 9.9 },
+                sh600002: { week: 10.2, month: 10.4 },
+                sh600004: { week: 0.893, month: 0.887 },
+              },
+            }
+            : {},
+        }),
+      };
+    };
+    const m = await globalThis.__mountLive(entry, 'QuoteTable', {
+      list: four, watch: true, onPick: () => {},
+      config: { positions: {}, alerts: {} }, editingCode: null, draft: null,
+    });
+    globalThis.fetch = oldFetch;
+
+    // 只取字符串子节点：texts() 会把 props.title 也算进来，而这三个格子的 title 正好是口径说明
+    const cellText = (n) => (Array.isArray(n) ? n.map(cellText).join('')
+      : (typeof n === 'string' ? n : (n?.children ?? []).map(cellText).join('')));
+    const tds = (name) => {
+      const tr = m.all((n) => n.type === 'tr').find((r) => texts(r).join('').includes(name));
+      return tr ? (tr.children ?? []).filter((c) => c && c.type === 'td').map(cellText) : [];
+    };
+    // 列序：名称 / 持有 / 现价 / 涨跌 / 日均价 / 周均价 / 月均价 / …
+    check('日均价取的是实时报价的 avgPrice', tds('均价01')[4] === '9.50', JSON.stringify(tds('均价01')));
+    check('周/月均价来自 /avg', tds('均价01')[5] === '9.80' && tds('均价01')[6] === '9.90',
+      JSON.stringify(tds('均价01')));
+    check('/avg 一次把整张表的代码都带上（翻页不用重取）',
+      seenUrls.some((u) => decodeURIComponent(u).includes('/avg?codes=sh600001,sh600002,sh600003,sh600004')),
+      seenUrls.filter((u) => u.includes('/avg')).join(' | '));
+    check('ETF 的均价保留 3 位小数，不被四舍五入成 0.89',
+      tds('均价04')[4] === '0.891' && tds('均价04')[5] === '0.893', JSON.stringify(tds('均价04')));
+    check('没有均价的股票：日列为空（CSS 补「—」）、周/月直接写「—」',
+      tds('均价03')[4] === '' && tds('均价03')[5] === '—' && tds('均价03')[6] === '—',
+      JSON.stringify(tds('均价03')));
+    check('补完均价的那次定时刷新是 60 秒', intervals.some((t) => t.ms === 60000),
+      intervals.map((t) => t.ms).join(','));
+
+    // 点周均价表头：降序，10.20 在前；没有数据的那只垫底
+    const thWeek = m.all((n) => n.props?.['data-key'] === 'avgWeek')[0];
+    check('周均价表头是个能点的按钮', Boolean(thWeek));
+    await m.click(thWeek);
+    const order = m.all((n) => n.props?.className === 'skd-name skd-name-btn').map((n) => texts(n).join(''));
+    check('按周均价降序：10.20 的在最前', (order[0] ?? '').includes('均价02'), order.join('|'));
+    check('按周均价降序：没有均价的那只排在最后',
+      (order[order.length - 1] ?? '').includes('均价03'), order.join('|'));
+  } else {
+    console.log('  SKIP  均价三列的交互用例（没有 mountLive 运行时）');
+  }
 }
 
 // ---- 结论 -----------------------------------------------------------------
