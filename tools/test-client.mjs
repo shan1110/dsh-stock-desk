@@ -372,7 +372,13 @@ const collectEls = (node, out = []) => {
   if (Array.isArray(node)) { node.forEach((x) => collectEls(x, out)); return out; }
   if (!node || typeof node !== 'object') return out;
   if (typeof node.type === 'function') {
-    collectEls(node.type(Object.assign({}, node.props, { children: node.children })), out);
+    // class 组件不能当函数调（Class constructor cannot be invoked without 'new'）。
+    // React 用 Component.prototype.isReactComponent 标记它们，这里照同一套判断跳过 ——
+    // 边界组件本来也不需要被展开，它只在出错时才会渲染别的东西。
+    // 用源码判断是不是 class：自检里的假 React 不给 Component 打 isReactComponent 标记，
+    // 只能看函数文本开头 —— 'class X extends ...' 与 'function X(' 的区别是确定的
+    const isClass = /^\s*class[\s{]/.test(Function.prototype.toString.call(node.type));
+    if (!isClass) collectEls(node.type(Object.assign({}, node.props, { children: node.children })), out);
     return out;
   }
   if (node.type) out.push(node);

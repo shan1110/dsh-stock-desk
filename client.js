@@ -262,6 +262,7 @@ window.__ModuleLoader__.load({
       crashTitle: "行情台渲染出错",
       crashHint: "把这段报错发给开发者即可定位。行情数据本身没问题，是界面这一层挂了。",
       crashWhere: "出错位置：",
+      blockCrash: "这块渲染出错",
 
       pagePrev: "上一页",
       pageNext: "下一页",
@@ -622,6 +623,7 @@ window.__ModuleLoader__.load({
       crashTitle: "Quote desk render error",
       crashHint: "Send this message to the developer. The data is fine; the UI layer failed.",
       crashWhere: "Failed at: ",
+      blockCrash: " failed to render",
 
       pagePrev: "Prev",
       pageNext: "Next",
@@ -941,6 +943,7 @@ window.__ModuleLoader__.load({
 .skd-ana-lv { display: grid; grid-template-columns: 1fr 56px 56px; align-items: baseline; gap: 6px; font-size: 11px; padding: 1px 0; }
 .skd-ana-lvname { color: var(--dsw-alias-label-primary); }
 .skd-ana-sub2 { font-size: 11px; color: var(--dsw-alias-label-secondary); margin: 4px 0 1px; }
+.skd-block-err { border: 1px solid var(--dsw-alias-state-error-primary); border-radius: 8px; padding: 8px 10px; }
 .skd-ana-cost { margin-top: 6px; padding-top: 4px; border-top: 1px dashed var(--dsw-alias-border-l1); }
 .skd-ana-sub { color: var(--dsw-alias-label-secondary); }
 .skd-ana-why { margin-top: 8px; }
@@ -3061,9 +3064,9 @@ window.__ModuleLoader__.load({
         position,
         board,
         // 图放在最后：先给数字（一眼看完），再给走势（要看细节时往下看）
-        h(Kline, { code: q.code }),
-        // 分析再去图之后：它要 40 多行，放在最上面会把「现价多少」挤出第一屏
-        h(CanAdd, { code: q.code, autoOpen: analysisAutoOpen }));
+        // K 线与分析各自包一层局部边界：它们出错不该把「现价、五档、位置」一起拖垮
+        h(BlockBoundary, { label: T("kline") }, h(Kline, { code: q.code })),
+        h(BlockBoundary, { label: T("anaTitle") }, h(CanAdd, { code: q.code, autoOpen: analysisAutoOpen })));
     }
 
     /**
@@ -4274,6 +4277,35 @@ window.__ModuleLoader__.load({
      *
      * 用 class 而不是函数组件：错误边界只能靠 getDerivedStateFromError 实现，没有 hook 版本。
      */
+    /**
+     * 局部错误边界：只包住一块界面，崩了不扩散。
+     *
+     * 为什么需要它：行情台是主体，分析块是后加的附件。附件出问题把整个行情台拖垮，
+     * 用户就没法看盘了 —— 而且从「整页崩」这个现象上，根本分不清是主体还是附件挂的。
+     * 包成两块之后，崩在哪一块，界面上就显示在哪一块。
+     */
+    class BlockBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { err: null, stack: "" }; }
+      static getDerivedStateFromError(err) { return { err }; }
+      componentDidCatch(err, info) {
+        const stack = String(info?.componentStack ?? "").trim();
+        this.setState({ stack });
+        try { console.error(`[dsh-stock-desk] ${this.props.label ?? ""} 渲染出错`, err, info); } catch { /* 忽略 */ }
+      }
+      render() {
+        if (this.state.err) {
+          const head = this.state.stack
+            ? this.state.stack.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 6).join(" → ")
+            : "";
+          return h("div", { className: "skd-ana skd-block-err" },
+            h("div", { className: "skd-ana-hd" }, h("span", { className: "skd-ana-t" }, `${this.props.label ?? ""}${T("blockCrash")}`)),
+            h("div", { className: "skd-meta" }, String(this.state.err?.message ?? this.state.err)),
+            head ? h("div", { className: "skd-meta" }, `${T("crashWhere")}${head}`) : null);
+        }
+        return this.props.children;
+      }
+    }
+
     class DeskBoundary extends React.Component {
       constructor(props) { super(props); this.state = { err: null, stack: "" }; }
       static getDerivedStateFromError(err) { return { err }; }
