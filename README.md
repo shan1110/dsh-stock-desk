@@ -1,178 +1,282 @@
-# dsh-stock-desk · A股行情台
+# dsh-stock-desk
 
-DSH 插件。在 Harness Web UI 侧边栏加一个行情台整页，同时给 agent 挂 6 个只在需要时才占上下文的行情工具。
+面向 DSH 的 A 股行情工作台插件。在 Web UI 侧边栏提供一个整页行情台，
+在对话页右下角常驻一个药丸，并向 agent 注册 6 个行情取数工具。
 
-## 安装（使用者）
+界面与 agent 读同一份自选数据，不存在「界面改了、agent 还看旧值」这类两套状态问题。
+
+## 目录
+
+- [功能](#功能)
+- [界面](#界面)
+- [安装](#安装)
+- [外部数据源](#外部数据源)
+- [配置](#配置)
+- [已知边界](#已知边界)
+- [开发](#开发)
+- [测试](#测试)
+- [项目结构](#项目结构)
+- [许可证](#许可证)
+
+## 功能
+
+### 盘面总览
+
+第一行横向排布，覆盖当日最主要的市场状态：
+
+| 内容 | 说明 |
+|---|---|
+| 6 个指数 | 上证指数、深证成指、创业板指、沪深 300、科创 50、中证 500；点位与涨跌幅实时刷新，点击可查看该指数的 K 线与分时 |
+| 涨跌家数 | 全市场上涨 / 下跌 / 平盘家数 |
+| 全市场成交额 | 与涨跌家数来自同一次全市场扫描，因此两个数字属于同一时点，不会出现「家数是 10:00、成交额是 10:03」 |
+
+### 涨停与连板
+
+涨停、炸板、跌停、连板梯队、首板五项全部以格子呈现，每格可点击下钻：
+
+- **下钻明细**按涨跌幅排序，分页展示，每页 10 条
+- 明细里的股票带板块标识（主板 / 创业板 / 科创板），便于判断是否在自身交易权限内
+- 每个字段旁有问号图标，鼠标悬停给出该指标的定义（如「炸板」「首板 = 涨停家数 − 连板家数」）
+
+### 板块
+
+同花顺行业板块，两个维度、各取 10 个：
+
+- **涨最狠 10 个**
+- **跌最狠 10 个**
+
+格子可点击下钻到该板块的成分股，同样按涨跌幅排序、每页 10 条。
+
+### 自选、持仓与监控
+
+自选表把**持仓**与**价格监控**整合在同一行，因为它们本来都是「某只自选股」的属性：
+
+| 列 | 说明 |
+|---|---|
+| 成本价 | 手工填写 |
+| 份额 | 手工填写 |
+| 今买 | 勾选后，今日盈亏以你的成本价作基准，而非昨收 |
+| 今日盈亏 | 未勾选「今买」时按昨收计算 |
+| 持仓盈亏 | 按成本价计算 |
+| 价格提醒 | 上限与下限两个阈值 |
+
+编辑通过右上角「编辑」按钮进入，**保存**才生效，**取消**全部丢弃 —— 避免误触直接改动持仓数据。
+
+自选支持搜索添加，股票与场内基金均可。
+
+### 个股详情
+
+点击任意一只股票（自选、板块成分股、涨停名单、指数）都会在**右侧栏**打开详情，
+不需要把页面滚到底部。详情默认展示分时图，可切换到日 / 周 / 月 K 线与分钟线，支持缩放与平移。
+
+### 刷新与监控
+
+- 默认每 10 秒自动刷新，刷新间隔可配置
+- 卡片上有一个倒计时与上次取数时间，用来判断数据是否还在更新
+- 价格监控设上下两个阈值，**只在价格跨过阈值的那一刻**发送桌面通知，不会反复提醒
+
+### agent 工具
+
+| 工具 | 用途 |
+|---|---|
+| `stock_quote` | 个股 / 指数 / ETF 实时报价，含五档盘口 |
+| `market_overview` | 大盘与市场情绪总览：指数、涨跌家数、涨停跌停家数、封板率 |
+| `limit_up_board` | 涨停与连板梯队、炸板池明细、板块涨停分布 |
+| `sector_rank` | 板块涨跌幅排行，含主力净流入与领涨股 |
+| `stock_kline` | 个股 / 指数 / ETF 的 K 线与区间统计 |
+| `stock_watchlist` | 读取用户自选分组 |
+
+工具定义全部注册，但模型只在真正需要时才读取其 schema；6 个定义合计约 1.3 KB。
+`stock_watchlist` 读的就是界面上那份自选，两边不会不一致。
+
+### 界面偏好
+
+设置页可调整涨跌配色（红涨绿跌 / 绿涨红跌，或跟随主题）、表格行高（宽松 / 紧凑），
+以及药丸上显示哪一个指数。
+
+## 界面
+
+### 整页总览
+
+指数与涨跌家数占第一行，往下依次是涨停、板块、自选。
+
+![整页总览](docs/images/overview.png)
+
+### 板块格子与下钻
+
+![板块格子](docs/images/sectors.png)
+
+![板块下钻与右侧详情](docs/images/drill.png)
+
+### 自选与持仓
+
+![自选与持仓](docs/images/watchlist.png)
+
+### 对话页药丸
+
+![药丸](docs/images/pill.png)
+
+## 安装
+
+### 从 npm
 
 ```powershell
-# 在 DSH 里
 plugin_manager(action: install_bundle, target: "dsh-stock-desk@0.1.0")
+```
 
-# 或走 CLI
+或使用 CLI：
+
+```bash
 dsh plugin --profile <你的 profile> add dsh-stock-desk@0.1.0
 ```
 
-要求 Node >= 24。装完刷新浏览器页面即可，侧边栏会出现行情台图标。
+装完刷新浏览器页面，侧边栏出现行情台图标。
 
-## 它连哪些外部服务
+### 从源码
 
-插件运行时由**你自己的机器**直接请求下面这些公开行情接口，不经过任何中转服务器，也没有遥测：
+```powershell
+git clone https://github.com/shan1110/dsh-stock-desk.git
+cd dsh-stock-desk
+node tools/check-resolution.mjs      # 先确认 @deepseek-ai/* 能解析，否则装了也不会激活
+dsh plugin --profile <你的 profile> install .
+```
+
+`check-resolution.mjs` 不能跳过。装载器对路径解析失败的报错写在 warning 里，
+表现为「安装成功但 fiber 不 active」。原理见 [安装与激活实测](docs/安装与激活实测.md)。
+
+### 环境要求
+
+| 项 | 要求 |
+|---|---|
+| Node.js | >= 24 |
+| DSH | 在 0.2.1-rc.2 上验证 |
+| 平台 | Web UI（`dsh.client.platform` 为 `web`） |
+
+## 外部数据源
+
+插件运行时由**本机**直接请求下列公开行情接口，不经过任何中转服务器，不含遥测。
 
 | 域名 | 用途 |
 |---|---|
-| `qt.gtimg.cn` | 腾讯行情：实时报价、五档盘口、日/周/月 K 线、分时 |
-| `data.10jqka.com.cn` / `basic.10jqka.com.cn` | 同花顺：涨停池、连板梯队、炸板池、行业板块榜与成分股 |
-| `push2his.eastmoney.com` 等 | 东方财富：**仅**作为分钟线 K 线的兜底源 |
+| `qt.gtimg.cn` | 腾讯行情：实时报价、五档盘口、日 / 周 / 月 K 线、分时 |
+| `data.10jqka.com.cn`、`basic.10jqka.com.cn` | 同花顺：涨停池、连板梯队、炸板池、行业板块榜与成分股 |
+| `push2his.eastmoney.com` 等 | 东方财富：仅作为分钟线 K 线的兜底源 |
 
-这些接口都是各站点网页在用的公开接口，不需要账号或 token。**它们不是官方 API，
-随时可能改结构、限流或失效**；插件对这些失败的处理是降级并显式标注数据来源，
+这些是各站点网页自身使用的公开接口，不需要账号或 token。**它们不是官方 API**，
+可能随时改变结构、限流或失效。插件对这类失败的处理方式是降级并显式标注数据来源，
 不会用陈旧数据冒充实时数据。
 
-自选、持仓、提醒价格存在 `~/.dsh/stock-desk/config.json`，纯本地文件，不上传。
+## 配置
+
+配置落在 `~/.dsh/stock-desk/config.json`，纯本地文件，不上传。
+
+| 字段 | 说明 |
+|---|---|
+| `groups` | 自选分组与分组内的代码 |
+| `positions` | 每只股票的成本价、份额、今买标记 |
+| `alerts` | 每只股票的价格提醒上下限 |
+| `ui.pollSec` | 自动刷新间隔（秒），默认 10 |
+| `ui.colorScheme` | 涨跌配色：`auto` / `redUp` / `greenUp` |
+| `ui.density` | 表格行高：`comfortable` / `compact` |
+| `ui.pillIndex` | 药丸显示的指数代码 |
+
+宿主进程读不到 `DSH_PROFILE_DIR` / `DSH_PROFILE`（这两个变量只注入给子进程），
+Host 也没有服务提供 profile 目录，因此配置走 DSH 家目录这条兜底路径 ——
+好处是换 profile 不会丢自选。当前命中的规则可由 `store.info().rule` 读出。
 
 ## 已知边界
 
-- 只覆盖 A 股（沪深主板 / 创业板 / 科创板 / 北交所不在内），港股与美股不支持。
-- 没有财务数据、新闻、公告、基本面。
-- 数据源限流是真实的，连续高频请求会被临时拒绝，插件有递增冷却。
-- 收盘后不刷新行情，界面会显示「已收盘」和快照时间。
+- **市场范围**：仅 A 股主板、创业板、科创板。港股与美股不支持（腾讯港股只有 78 个字段且与 A 股错位）；
+  北交所代码不在代码池内，请求会被拒绝。
+- **概念板块无涨跌幅数据**：板块格子只覆盖同花顺行业板块（约 90 个）。腾讯虽有板块榜，
+  但与同花顺名称重合率仅约 31%，无法用于下钻，故未采用。
+- **板块成分股免费页数有限**：同花顺匿名接口只开放前 5 页成分股。超出部分接口会返回
+  `truncated` 标记，界面照实提示，不静默截断。
+- **无基本面数据**：不含财务、新闻、公告。
+- **数据源限流是真实的**：连续高频请求会被临时拒绝，插件按 30 秒起步、上限 600 秒做递增冷却。
+- **收盘后不刷新行情**：界面显示「已收盘」与快照时间，不拿陈旧数据顶替。
+- **开盘前部分接口返回空**：集合竞价期间同花顺的涨停池与板块接口会报错，此时对应卡片留空并标注原因。
 
-## 开发：本地安装
+## 开发
 
-以下步骤针对改这个仓库本身的场景，使用者不需要看。
-
-```powershell
-# 1) 解析路径：工作区目录是软链接安装，@deepseek-ai/* 必须能解析到，否则装上了也不会激活
-node tools/check-resolution.mjs
-
-# 2) 安装（path 指到本目录）
-dsh plugin --profile desktop install E:\dsh-plugin
-```
-
-第 1 步不能跳。装载器对解析失败的报错藏在 warning 里，表现为「安装成功但 fiber 不 active」。
-原理见 `docs/安装与激活实测.md` 第 2 节。
-
-改完代码要重启插件（HMR 不热更已激活插件的文件改动）：
+改动代码后需要重启插件 —— HMR 不会热更已激活插件的文件改动：
 
 ```
 plugin_manager(set_plugin, target: "include:stock-desk", enabled: false)
 plugin_manager(set_plugin, target: "include:stock-desk", enabled: true)
 ```
 
-改完客户端代码还要**刷新浏览器页面** —— 客户端模块只在页面加载时取一次。
+改动客户端代码还需**刷新浏览器页面**：客户端模块只在页面加载时取一次。
 
-## 自检
-
-```powershell
-foreach ($t in @("test-tencent","test-sources","test-market","test-tools","test-client","test-contract")) {
-  node "tools\$t.mjs"
-}
-```
-
-前 5 个套件在当前时点实测 291 条断言（`test-sources` 在东财可用时多 3 条）；
-`test-contract` 再 76 条，它要打活的 HTTP 接口，得先确保插件已装入并激活。
-全部应退出码 0。**注意：盘口类断言写成多态** —— 实测收盘与尾盘竞价期间的盘口有四种形态
-（满档 / `null` / 两侧空数组 / 只有买一侧），写死「一定有买一」会在每天 15:00 后准时变红，
-更糟的是 `bids[0].price` 会抛 TypeError 把整个套件带崩，连跑了几条都不告诉你。
-**修断言时不要只按这一次看到的形态改** —— 这个坑犯了五次。
-改动数据源解析、工具输出、单位换算、或客户端槽位注册后跑一遍。
-
-`test-client.mjs` 里那两组是**真渲染**，不是构造断言：它把 `desk` 喂上一份真实形状的
-`/dashboard`，然后调 `DeskPage()` / `Pill()` / `DeskButton()` 看渲染出来的文字里
-到底有没有指数点位、涨跌幅、涨跌家数。方案 §8 第 1 条与第 4 条因此不必靠肉眼。
-
-两条纪律写在这个文件里，改它的时候别破：
-
-1. **`catch` 一律不许静默。** 一个静默的 `catch` 会把「某个组件崩了」变成
-   「这一段没渲染」，两者症状一样、成因完全不同。
-2. **`check` 通过时也要打印。** 否则「一片空白」是没渲染还是没打印，一眼分不出来。
-   本轮为此白走了三轮。
-
-第 6 个套件 `test-contract.mjs` **要 GUI 在跑**，它直接打 HTTP 路由：
-
-```powershell
-node "tools\test-contract.mjs"      # 需 http://127.0.0.1:8820 在跑，只读不发 POST
-```
-
-76 条断言，逐个核对 `client.js` 读到的每一条字段路径。它存在的理由很具体：第 1 轮
-有 6 处客户端与宿主对不上的问题（`{ok,data}` 信封没拆、`store.path` 不存在、
-自选实际取自 `config.groups[].items`），当时没有任何测试真正调过这些路由 ——
-全靠手写 PowerShell 探针，而探针本身我也写错过好几次
-（用 `$_.price` 去读嵌套在 `.fields` 里的价格，探针返回空，看起来像插件坏了）。
-
-断言值一律来自真实响应 dump，不来自记忆。这正是迁移那个 bug 的成因：
-拿自己以为的形状当固定装置，测试全绿而缺陷照旧。
-
-`test-client.mjs` 里包含方案 §8 那条验收标准的机器判定版本：**指数明细不得出现
-换手率 / 市盈率 / 市净率 / 涨跌停价 / 委差 / 盘口**。它靠的是「按字段是否存在渲染」这一设计，
-而不是靠肉眼在浏览器里点两遍。
-
-同一个文件还守着三类**桩件验不出来**的约定，它们的共同点是「框架保证、桩件不校验」：
-
-1. 槽位注册的必填字段（`shell.overlay` 的 `id` 漏过一次，药丸永远不出现且不报错）。
-2. `sidebar.panellist.id` 必须等于 `main.key`（不等则点按钮没反应，同样不报错）。
-3. `shell.overlay` 整层是 click-through，药丸必须自己 `pointer-events:auto`（漏过一次，药丸点不动）。
-4. 颜色一律走 `--dsw-*` 令牌，写死十六进制切主题不跟随（白名单只留主按钮的 `#fff`）。
-
-装完先问一次客户端半边有没有接进启动图，再去刷新页面：
+装完先确认客户端半边已进入启动图，再去刷新页面：
 
 ```powershell
 (Invoke-RestMethod http://127.0.0.1:8820/api/stock-desk/diag).data
 ```
 
-`wired: true` 表示刷新一定有用；`wired: false` 表示刷新多少次都没用，问题在 `package.json`
-的 `dsh.client` 声明。这两种情况排查方向完全不同。
+`wired: true` 表示刷新一定有效；`wired: false` 表示刷新多少次都没用，问题在 `package.json`
+的 `dsh.client` 声明。两种情况排查方向完全不同。
 
-## 结构
+开发期的约定与踩过的坑见 [开发与自检](docs/开发与自检.md)。
+
+## 测试
+
+```powershell
+foreach ($t in @("test-tencent","test-sources","test-boards","test-market","test-tools","test-client")) {
+  node "tools\$t.mjs"
+}
+node "tools\test-contract.mjs"    # 需要 GUI 在 http://127.0.0.1:8820 运行
+```
+
+全部套件应退出码 0。`test-contract.mjs` 直接请求运行中的 HTTP 路由，逐个核对客户端读取的字段路径。
+
+断言的具体约定与被测行为见 [开发与自检](docs/开发与自检.md)。
+
+## 项目结构
 
 ```
-index.js             宿主入口：inject webServer + tools，建 cache/store/market 三个单例
-cordis.patch.yml     把插件插进 profile 的 Cordis 组合
-client.js            浏览器半边：整页 + 侧边栏按钮 + 药丸，无构建步骤，故用 React.createElement
+index.js             宿主入口：inject webServer + tools，建立 cache / store / market 单例
+cordis.patch.yml     把插件插入 profile 的 Cordis 组合
+client.js            浏览器半边：整页 + 侧边栏按钮 + 药丸。无构建步骤，故使用 React.createElement
 locale/{zh,en}.json  插件管理页里的展示元数据（与 client.js 内的界面词条是两回事）
 
-lib/tencent.js       腾讯行情：88 字段解析、五档、涨跌停判定
-lib/ths.js           同花顺涨停池：连板梯队、板块涨停分布
-lib/eastmoney.js     东方财富：板块涨跌与主力净流入、日K
-lib/market.js        三个源的编排、TTL 缓存、降级
-lib/routes.js        HTTP 接口，全部返回 { ok, data }
-lib/store.js         自选与界面配置的读写
+lib/tencent.js       腾讯行情：字段解析、五档盘口、涨跌停判定
+lib/ths.js           同花顺：涨停池、连板梯队、炸板池
+lib/boards.js        同花顺行业板块榜与成分股
+lib/eastmoney.js     东方财富：分钟线 K 线兜底
+lib/market.js        多源编排、TTL 缓存、降级与源健康度
+lib/routes.js        HTTP 接口，统一返回 { ok, data }
+lib/store.js         自选、持仓与界面配置的读写
 lib/tools.js         6 个 agent 工具（defineTool）
-lib/universe.js      全市场代码池（data/universe.json，5575 只）
+lib/universe.js      全市场代码池（data/universe.json，5575 只股票 + 1707 只基金）
 lib/cache.js         请求缓存、数据源健康度、递增冷却
-lib/session.js       交易时段判定（竞价/交易中/午休/已收盘）
+lib/session.js       交易时段判定（竞价 / 交易中 / 午休 / 已收盘）
 lib/format.js        数字格式化与数据来源标注
 
-data/universe.json   全市场代码池，构建脚本 tools/build-universe.mjs
-docs/                实测记录
+data/universe.json   全市场代码池，由 tools/build-universe.mjs 生成
+docs/                实测记录与设计留档
 tools/               探针、构建脚本、自检套件
 ```
 
-## 界面
+### HTTP 接口
 
-侧边栏一个图标 → 整页。页面上：指数条、涨跌家数、涨停梯队、板块涨停分布、自选表、数据源健康度。
-对话页右下角一个药丸，常态显示上证点位与自选涨跌家数。
+全部返回 `{ ok, data }` 信封：
 
-## agent 工具
+```
+GET /api/stock-desk/{state,dashboard,quote,board,pool,kline,minute,search,config,diag}
+POST /api/stock-desk/{config,migrate}
+```
 
-`stock_quote` `market_overview` `limit_up_board` `sector_rank` `stock_kline` `stock_watchlist`
+## 文档
 
-工具定义全部注册，但模型只在真正需要时才读它们的 schema —— 6 个定义合计约 1287 字符。
-`stock_watchlist` 读的就是界面上那份自选，两边不会不一致。
+| 文档 | 内容 |
+|---|---|
+| [安装与激活实测](docs/安装与激活实测.md) | 装载器行为、激活条件、槽位注册约定 |
+| [数据源实测](docs/数据源实测.md) | 各接口的限流、超时、降级实测记录 |
+| [腾讯字段实测表](docs/腾讯字段实测表.md) | 88 个字段的偏移、单位与含义 |
+| [东财不可达取证与板块可行性](docs/东财不可达取证与板块可行性.md) | 为什么板块走同花顺 |
+| [插件市场调研](docs/插件市场调研.md) | DSH 插件市场机制与发布流程 |
 
-## 已知边界
+## 许可证
 
-- **港股不在范围内。** 腾讯港股只有 78 个字段且与 A 股错位（第 46 位是名称不是市值）。
-  `normalizeCodes` 会丢掉 `hk` 前缀的代码。
-- **北交所请求会被拒。** 代码池不含 `bj` 前缀。
-- **收盘后不刷新行情。** 工具会明确报「已收盘」并给出快照时间，不用陈旧数据顶替。
-- **数据源限流是真实的。** 东财被我们自己高频探测打到过连续 `UND_ERR_SOCKET`；
-  现在有 30 秒起步、上限 600 秒的递增冷却，见 `docs/数据源实测.md`。
-
-## 配置
-
-落在 `~/.dsh/stock-desk/config.json`。
-
-宿主进程里读不到 `DSH_PROFILE_DIR` / `DSH_PROFILE`（这两个变量只注入给子进程），
-Host 也没有任何服务提供 profile 目录，所以走的是 DSH 家目录这条兜底路径。
-好处是换 profile 不丢自选。当前命中的规则会由 `store.info().rule` 带出来，界面上能看到。
+[MIT](LICENSE)
