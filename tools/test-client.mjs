@@ -2487,6 +2487,18 @@ if (mountPill && PillView) {
     String(card[0]?.props?.className));
   const rowEls = m.all((n) => n.props?.className === 'skd-pc-row');
   check('面板里只列两只持有的票', rowEls.length === 2, String(rowEls.length));
+  // 列名：四个数字不标列名的话，最后一个（今日盈亏）会被当成涨跌额或市值。
+  // 它和明细行共用同一套 grid，所以单元格类名必须一致，否则四列对不齐。
+  const thEl = m.all((n) => n.props?.className === 'skd-pc-row skd-pc-th');
+  check('面板里有列名行', thEl.length === 1, String(thEl.length));
+  const thCells = thEl[0]?.children ?? [];
+  const thText = thCells.map((c) => String(c?.children?.[0] ?? ''));
+  check('列名是「名称 / 现价 / 涨跌 / 今日盈亏」',
+    JSON.stringify(thText) === '["名称","现价","涨跌","今日盈亏"]', JSON.stringify(thText));
+  check('列名的四列类名和明细行完全一致（否则网格对不齐）',
+    JSON.stringify(thCells.map((c) => c?.props?.className))
+      === JSON.stringify(['skd-pc-rn', 'skd-pc-rp', 'skd-pc-rc', 'skd-pc-rt']),
+    JSON.stringify(thCells.map((c) => c?.props?.className)));
   const cardText = strings(card[0] ?? {}).join('|');
   check('面板里有持有的票名', cardText.includes('贵州茅台') && cardText.includes('半导体设备ETF'), cardText.slice(0, 80));
   check('面板里没有没勾持有的票', !cardText.includes('儒意电影'), cardText.slice(0, 80));

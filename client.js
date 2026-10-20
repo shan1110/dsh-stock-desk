@@ -839,9 +839,13 @@ window.__ModuleLoader__.load({
 .skd-pc-idx{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;min-width:0}
 .skd-pc-idxname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .skd-pc-sum{display:flex;justify-content:space-between;align-items:center;
-  padding:6px 2px 3px;color:var(--skd-dim);font-size:11.5px}
+  margin-top:3px;padding:5px 2px 1px;border-top:1px solid var(--dsw-alias-border-l2);
+  color:var(--skd-dim);font-size:11.5px}
 .skd-pc-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;
   padding:3px 2px}
+/* 列名那行：只降字号和颜色，不换 grid，否则四列对不齐就得再维护一套宽度 */
+.skd-pc-th{padding:0 2px 4px;border-bottom:1px solid var(--dsw-alias-border-l2);
+  color:var(--skd-dim);font-size:10.5px;font-weight:400}
 .skd-pc-rn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .skd-pc-rp,.skd-pc-rc{text-align:right;min-width:52px}
 .skd-pc-rt{text-align:right;min-width:78px}
@@ -3844,10 +3848,13 @@ window.__ModuleLoader__.load({
         rows.length === 0
           ? h("div", { className: "skd-pc-empty" }, T("pillNoHeld"))
           : h("div", null,
-            h("div", { className: "skd-pc-sum" },
-              h("span", null, heldCount),
-              h("span", { className: total === null ? "skd-flat" : dir(total) },
-                `${T("pillTotal")} ${money(total)}`)),
+            // 列名。这一行四个数字，不标的话最后一个（今日盈亏）没人知道是什么，
+            // 容易被当成「涨跌额」或「市值」。文案复用自选表表头，两处叫法保持一致。
+            h("div", { className: "skd-pc-row skd-pc-th" },
+              h("span", { className: "skd-pc-rn" }, T("stock")),
+              h("span", { className: "skd-pc-rp" }, T("price")),
+              h("span", { className: "skd-pc-rc" }, T("pct")),
+              h("span", { className: "skd-pc-rt" }, T("todayPnl"))),
             // 展开成兄弟节点而不是塞一个数组：数组子节点在 React 里要 key，
             // 在自检的桩件里连遍历都进不去（它只走 children，不摊平数组）
             ...rows.map((r) => h("div", { className: "skd-pc-row", key: r.q.code },
@@ -3855,7 +3862,13 @@ window.__ModuleLoader__.load({
               h("span", { className: "skd-pc-rp" }, fieldText("price", r.price, r.q) ?? "—"),
               h("span", { className: `skd-pc-rc ${dir(F(r.q).changePct)}` }, pct(F(r.q).changePct)),
               h("span", { className: `skd-pc-rt ${r.todayPnl === null ? "skd-flat" : dir(r.todayPnl)}` },
-                r.todayPnl === null ? "—" : money(r.todayPnl))))),
+                r.todayPnl === null ? "—" : money(r.todayPnl)))),
+            // 合计放在明细下面，跟表格的合计行一个位置；放上面时它夹在列名与数据之间，
+            // 看着像第二行数据
+            h("div", { className: "skd-pc-sum" },
+              h("span", null, heldCount),
+              h("span", { className: total === null ? "skd-flat" : dir(total) },
+                `${T("pillTotal")} ${money(total)}`))),
         h("div", { className: "skd-pc-foot" },
           missing > 0
             ? h("span", { title: T("pillNotInList") }, `${missing} ${T("pillNotInList")}`)
