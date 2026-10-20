@@ -324,6 +324,19 @@ console.log(`\n【4.5】GET /search —— 股票和场内基金都要能搜到\
   check('/state 报出了 fundCount', typeof uni.fundCount === 'number' && uni.fundCount > 1000, String(uni.fundCount));
 }
 
+console.log(`\n【4.6】GET /ocr —— 图片识别能不能用要先问得到\n`);
+{
+  const r = await get('/ocr');
+  check('HTTP 200', r.status === 200, String(r.status));
+  const probe = r.body?.data?.probe ?? {};
+  check('/ocr 返回 probe', typeof probe === 'object' && probe !== null, JSON.stringify(probe));
+  check('probe.ok 是布尔', typeof probe.ok === 'boolean', String(probe.ok));
+  check('probe.langs 是数组（界面不依赖具体值，但形状要定）', Array.isArray(probe.langs),
+    JSON.stringify(probe.langs));
+  check('probe.error 是字符串（没装语言包时界面要能显示原因）', typeof probe.error === 'string',
+    String(probe.error));
+}
+
 console.log(`\n【5】报价形状 —— 个股与指数必须是两套（方案 §8 第 2、3 条）\n`);
 const q = await get('/quote?codes=sh600519,sh000001');
 check('HTTP 200', q.status === 200, String(q.status));

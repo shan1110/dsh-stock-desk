@@ -276,11 +276,16 @@ const texts = (node) => {
  * 因为它是个函数组件 —— texts 不展开函数组件，于是「拿不到」三个字一个字都看不到，
  * 断言会误判成「渲染是空的」。
  */
-const strings = (node, out = [], onErr = null) => {
+const strings = (node, out = [], onErr = null, seen = new WeakSet()) => {
   if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out; }
-  if (Array.isArray(node)) { node.forEach((x) => strings(x, out, onErr)); return out; }
+  if (Array.isArray(node)) { node.forEach((x) => strings(x, out, onErr, seen)); return out; }
   if (node === null || node === undefined || typeof node === 'boolean') return out;
   if (typeof node === 'function') return out;
+  // mountLive 的 attachRefs 会把元素的 props.ref.current 指回元素自己，
+  // 下面按 Object.values 全量下钻就会无限递归，以 Maximum call stack size exceeded 收场。
+  // 这种崩法会把整个自检文件的后续用例一起埋掉，所以挡在这，不要留给调用方。
+  if (seen.has(node)) return out;
+  seen.add(node);
   // 函数组件必须展开：文字在组件自己的 render 里，不在元素上。
   //
   // 不展开的后果是整页文字里只剩 props 上那几个字符串（分组名、代码、股票名），
@@ -299,9 +304,9 @@ const strings = (node, out = [], onErr = null) => {
     let sub;
     try { sub = node.type(merged); }
     catch (e) { if (onErr) onErr(node.type.name || '(匿名组件)', e); return out; }
-    return strings(sub, out, onErr);
+    return strings(sub, out, onErr, seen);
   }
-  for (const v of Object.values(node)) strings(v, out, onErr);
+  for (const v of Object.values(node)) strings(v, out, onErr, seen);
   return out;
 };
 
@@ -652,28 +657,33 @@ for (const [label, mi] of [
       return out;
     };
     const cycleCount = () => cycles;
-    /** 派发事件后把重渲染跑完 */
-    const fire = async (el, name, ev) => {
-      for (const x of el.listeners[name] ?? []) x.fn(ev);
+    /**
+     * 把 setState 之后的重渲染跑完。
+     *
+     * fire / click 内部用它；直接调 props.onChange 的用例也必须用它 ——
+     * rt.dirty 只在这几个 helper 的循环里被消费，自己 await 一个 setTimeout 是不会重渲染的
+     * （排查记录：取消勾选后按钮上的数字不变，一开始被当成 setPick 没生效）。
+     */
+    const flush = async () => {
       for (let i = 0; i < 6; i += 1) {
         for (const job of rt.queue.splice(0)) job();
         await tick();
         if (rt.dirty) paint();
         else break;
       }
+    };
+    /** 派发事件后把重渲染跑完 */
+    const fire = async (el, name, ev) => {
+      for (const x of el.listeners[name] ?? []) x.fn(ev);
+      await flush();
     };
     const click = async (el) => {
       const fn = el.props.onClick ?? el.props['onClick'];
       if (fn) fn({ preventDefault() {}, stopPropagation() {} });
-      for (let i = 0; i < 6; i += 1) {
-        for (const job of rt.queue.splice(0)) job();
-        await tick();
-        if (rt.dirty) paint();
-        else break;
-      }
+      await flush();
     };
 
-    return { rt, find, all, fire, click, cycleCount, get tree() { return tree; } };
+    return { rt, find, all, fire, click, flush, cycleCount, get tree() { return tree; } };
   }
   globalThis.__mountLive = mountLive;
 
@@ -1792,6 +1802,104 @@ check('整页容器自己可滚：外层 main 不给滚动条，超出视口的�
   /\.skd-page\{[^}]*overflow-y:auto/.test(clientSrc), '');
 check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 padding 是 0）',
   /\.skd-d\{[^}]*margin:10px 10px/.test(clientSrc), '');
+
+// ---- 图片识别面板 ------------------------------------------------------------
+// 用户要求「加一个功能，可以图片分析股票，就不用我手动输入了」。
+// 这里锁四件事：入口在位、本机没有 OCR 时说得清、候选能勾、勾完按选择加入。
+{
+  const { ImageImport, fill } = mod.__test ?? {};
+  check('导出了图片识别面板', typeof ImageImport === 'function');
+
+  check('{n} 占位能被替换', fill?.('加入自选（{n}）', 3) === '加入自选（3）', fill?.('加入自选（{n}）', 3));
+  check('占位缺失时不抛错', fill?.(undefined, 1) === '', JSON.stringify(fill?.(undefined, 1)));
+
+  // 按钮与面板都必须有样式，否则「贴完图之后面板看不见」会以布局问题的形式出现
+  check('图片面板有样式（.skd-imgbox）', /\.skd-imgbox\{/.test(clientSrc), '');
+  check('拖拽区有虚线边框（.skd-imgdrop）', /\.skd-imgdrop\{[^}]*dashed/.test(clientSrc), '');
+  check('选中的候选行有可点区域（.skd-imgrow）', /\.skd-imgrow\{/.test(clientSrc), '');
+  check('「图片」按钮有按下态（.skd-btn[data-on="1"]）', /\.skd-btn\[data-on="1"\]\{/.test(clientSrc), '');
+  // 卡头那排必须不换行：图片按钮是第三个定宽小件，多一个就可能把这一行挤成两行
+  check('卡头工具条仍然锁定不换行', /\.skd-card-h>\.skd-tools\{[^}]*nowrap/.test(clientSrc), '');
+  check('通用 .skd-tools 仍然允许换行（设置页那排按钮靠它）',
+    /\.skd-tools\{[^}]*flex-wrap:wrap/.test(clientSrc), '');
+
+  if (typeof ImageImport === 'function' && globalThis.__mountLive) {
+    // 分支一：本机没有 OCR。这时必须直接说清楚，而不是让用户贴完图才失败
+    {
+      const oldFetch = globalThis.fetch;
+      globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ ok: true, data: { probe: { ok: false, langs: [], error: 'NO_OCR_ENGINE' } } }),
+      });
+      const m = await globalThis.__mountLive(entry, 'ImageImport', { onAdd: async () => 0, onClose: () => {} });
+      // 用 strings 而不是 texts：提示文本走的是 Msg 这个函数组件，texts 不会展开它
+      const t = strings(m.tree).join('|');
+      check('没有 OCR 时给出可读的说明', t.includes('中文 OCR') || t.includes('语言包'), t);
+      check('没有 OCR 时不再显示拖拽区', m.find((n) => String(n.props?.className ?? '').includes('skd-imgdrop')) === null);
+      check('没有 OCR 时不抛错', m.cycleCount() === 0, String(m.cycleCount()));
+      globalThis.fetch = oldFetch;
+    }
+
+    // 分支二：认出候选。默认全勾，取消一只后按钮上的数字要跟着变
+    {
+      const picked = [];
+      const m = await globalThis.__mountLive(entry, 'ImageImport', {
+        onAdd: async (codes) => { picked.push(codes); return codes.length; },
+        onClose: () => {},
+        initial: {
+          lang: 'zh-Hans-CN',
+          lines: ['贵 州 茅 台', '平 安 银 行', '我 的 自 选'],
+          candidates: [
+            { code: 'sh600519', name: '贵州茅台', kind: 'stock', matchedBy: 'code' },
+            { code: 'sz000001', name: '平安银行', kind: 'stock', matchedBy: 'name' },
+          ],
+          unmatched: ['我 的 自 选'],
+        },
+      });
+      const t = texts(m.tree).join('|');
+      check('候选里两只股票都列出来了', t.includes('贵州茅台') && t.includes('平安银行'), t);
+      check('候选带代码，用户能核对', t.includes('sh600519') && t.includes('sz000001'), t);
+      check('默认全勾，加入按钮写的是 2 只', t.includes('加入自选（2）'), t);
+      check('没对上的行数如实报出来', t.includes('1'), t);
+
+      const boxes = m.all((n) => n.props?.type === 'checkbox');
+      check('每只候选一个勾选框', boxes.length === 2, String(boxes.length));
+
+      // 取消「贵州茅台」那一只
+      const first = boxes.find((b) => b.props?.checked === true);
+      if (first) {
+        first.props.onChange({ target: { checked: false } });
+        await m.flush();
+      }
+      const t2 = texts(m.tree).join('|');
+      check('取消勾选后按钮数字跟着变', t2.includes('加入自选（1）'), t2);
+
+      // 点「加入自选」：只把勾着的那只交给上层
+      const addBtn = m.all((n) => n.props?.type === 'button')
+        .find((n) => texts(n).join('').includes('加入自选（'));
+      if (addBtn) await m.click(addBtn);
+      check('点了加入按钮', Boolean(addBtn));
+      check('只加入勾选的候选', JSON.stringify(picked[0] ?? null) === JSON.stringify(['sz000001']),
+        JSON.stringify(picked[0] ?? null));
+    }
+
+    // 分支三：一张图里什么都没认出来。不能留白，得说清「没认出」并给出下一步
+    {
+      const m = await globalThis.__mountLive(entry, 'ImageImport', {
+        onAdd: async () => 0,
+        onClose: () => {},
+        initial: { lang: 'zh-Hans-CN', lines: ['1328 ． 26'], candidates: [], unmatched: [] },
+      });
+      const t = strings(m.tree).join('|');
+      check('没认出股票时给出提示', t.includes('没认出'), t);
+      // 只认按钮本身：抬头那句说明里也含「加入自选」四个字，整体搜索会误判
+      check('没认出时没有「加入自选」按钮',
+        m.all((n) => n.props?.type === 'button').every((n) => !texts(n).join('').includes('加入自选（')), t);
+    }
+  } else {
+    console.log('  SKIP  交互层用例（没有 mountLive 运行时）');
+  }
+}
 
 // ---- 结论 -----------------------------------------------------------------
 console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);

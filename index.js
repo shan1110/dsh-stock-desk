@@ -16,6 +16,7 @@
 
 import { createCache } from './lib/cache.js';
 import { createMarket } from './lib/market.js';
+import { createOcr } from './lib/ocr.js';
 import { createStore } from './lib/store.js';
 import { registerRoutes } from './lib/routes.js';
 import { registerStockTools } from './lib/tools.js';
@@ -40,10 +41,13 @@ export function apply(ctx) {
   const store = createStore();
   // 接口与工具共用同一份缓存与健康度：agent 刚问过的行情，界面刷新时不会重复打一次上游
   const market = createMarket({ cache });
+  // OCR 只被 HTTP 接口用到，不进 market：它不联网、也不参与行情缓存
+  const ocr = createOcr();
 
   ctx.effect(() => registerRoutes(ctx, {
     market,
     store,
+    ocr,
     // 可选依赖：问得到就顺带回一句「客户端半边有没有接进启动图」，
     // 问不到（宿主没这个服务）不影响任何正事，所以用 get 而不是写进 inject
     clientModules: ctx.get('clientModules'),

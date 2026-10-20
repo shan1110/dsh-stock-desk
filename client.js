@@ -103,6 +103,20 @@ window.__ModuleLoader__.load({
       hintRange: "当日区间位置：现价在「最低—最高」之间的相对位置，0% 是最低、100% 是最高。",
       fundTag: "基金",
       searchHint: "可搜股票代码/名称，也可搜场内基金（ETF/LOF），例如 510300、创业板ETF。",
+      fromImage: "图片",
+      hintFromImage: "从截图里认股票：把券商的持仓/自选截图贴进来，自动认出代码与名称，勾选后加入自选，不用手打。",
+      imgDrop: "粘贴截图（Ctrl+V）、把图片拖到这里，或点这里选文件",
+      imgBusy: "正在识别…",
+      imgOff: "本机没有中文 OCR：识别用的是 Windows 自带 OCR，需要在系统设置里装中文（简体）语言包。",
+      imgNone: "图里没认出股票。可以试试只截自选列表那一块，别带太多无关文字。",
+      imgFound: "认出 {n} 只",
+      imgUnmatched: "另有 {n} 行没对上股票",
+      imgAdd: "加入自选（{n}）",
+      imgAdding: "加入中…",
+      imgAdded: "已加入 {n} 只",
+      imgClose: "收起",
+      imgHintCode: "按代码命中",
+      imgHintName: "按名称命中",
       cost: "成本价",
       shares: "份额",
       todayPnl: "今日盈亏",
@@ -298,6 +312,20 @@ window.__ModuleLoader__.load({
       hintRange: "Intraday position: where the last price sits between today's low (0%) and high (100%).",
       fundTag: "Fund",
       searchHint: "Search stocks by code or name, or on-exchange funds (ETF/LOF) such as 510300.",
+      fromImage: "Image",
+      hintFromImage: "Read a broker screenshot: paste it in, get the codes and names back, tick the ones you want and add them without typing.",
+      imgDrop: "Paste a screenshot (Ctrl+V), drop it here, or click to pick a file",
+      imgBusy: "Reading the image…",
+      imgOff: "No Chinese OCR on this machine: it uses the built-in Windows OCR, which needs the Chinese (Simplified) language pack.",
+      imgNone: "No stocks found in that image. Try cropping to just the watchlist rows.",
+      imgFound: "Found {n}",
+      imgUnmatched: "{n} more lines matched nothing",
+      imgAdd: "Add to watchlist ({n})",
+      imgAdding: "Adding…",
+      imgAdded: "Added {n}",
+      imgClose: "Hide",
+      imgHintCode: "matched by code",
+      imgHintName: "matched by name",
       cost: "Cost",
       shares: "Shares",
       todayPnl: "Today P/L",
@@ -623,10 +651,10 @@ window.__ModuleLoader__.load({
    两种主题下对比度都成立。 */
 .skd-btn[data-primary="1"]{border-color:transparent;background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base)}
 .skd-btn[data-xs="1"]{font-size:11px;padding:2px 7px;border-radius:5px}
-/* 卡头右半区：一律不换行。
-   倒计时 / 刷新间隔 / 通知是三个定宽小件，搜索框是唯一能伸缩的那个 ——
-   空间不够时让搜索框变窄，而不是把这一行拆成两行。
-   原先 .skd-tools 是 wrap + .skd-sr 的 min-width:170px，两者一叠加就必然换行。 */
+/* 开关型按钮的按下态：例如自选卡头的「图片」。
+   不拿 brand-primary 填底，理由同主按钮那条注释。 */
+.skd-btn[data-on="1"]{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2)}
+/* 通用的工具条：允许换行。设置页那排按钮用它 */
 .skd-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 /* 自选卡头右半区强行排成一行。
    倒计时 / 刷新间隔 / 通知是三个定宽小件，搜索框是唯一能伸缩的那个 ——
@@ -637,6 +665,21 @@ window.__ModuleLoader__.load({
 /* 刷新相关的一组：nowrap 保证倒计时、刷新间隔、通知不会互相拆到两行去 */
 .skd-toolgroup{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:0 0 auto}
 .skd-sr{position:relative;flex:0 1 220px;min-width:90px}
+/* 图片识别面板。长在自选表上方，用完即收 */
+.skd-imgbox{display:flex;flex-direction:column;gap:8px;margin:0 10px 10px;padding:10px;
+  border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}
+.skd-imghead{display:flex;align-items:center;gap:8px}
+.skd-imghint{flex:1 1 auto;min-width:0;font-size:12px;color:var(--skd-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skd-imgdrop{display:flex;align-items:center;justify-content:center;min-height:64px;padding:10px;
+  border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;font-size:12.5px;color:var(--skd-dim);
+  cursor:pointer;text-align:center}
+.skd-imgdrop:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.skd-imglist{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow-y:auto}
+.skd-imgrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.skd-imgrow:hover{background:var(--dsw-alias-bg-layer-2)}
+.skd-imgname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skd-imgfoot{display:flex;align-items:center;gap:10px}
+.skd-imgfoot>.skd-meta{flex:1 1 auto;min-width:0}
 .skd-sr-list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow-y:auto;
   border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay);
   box-shadow:0 8px 24px rgba(0,0,0,.18)}
@@ -723,13 +766,16 @@ window.__ModuleLoader__.load({
      * 宿主一律回 {ok, data} 信封（见 lib/routes.js），在这里统一拆封并抛错：
      * 拆封散在每个调用点的话，漏掉一处就会静默拿到 undefined —— 界面留白且不报错。
      */
-    async function api(path, body) {
+    async function api(path, body, timeoutMs = REQUEST_TIMEOUT_MS) {
       // 浏览器侧的 fetch 默认没有超时。连接被挂住（不是被拒绝，而是没人回）时，
       // 界面会永远停在「正在取数…」—— 用户报的就是这个。
       // 实测后端对同一个请求 1~3ms 就返回，所以挂住只可能是连接层面的问题；
       // 加超时至少能把它变成一条能读的报错，而不是无限转圈。
+      //
+      // 图片识别单独放宽：一次 OCR 是「上传几百 KB + 起 PowerShell + 认图」，
+      // 15 秒的行情超时对它太紧，超时了报的还是「取数超时」，看不出是图片那一路。
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => ctl.abort(), timeoutMs);
       let res;
       try {
         res = await fetch(API + path, body === undefined ? { signal: ctl.signal } : {
@@ -740,7 +786,7 @@ window.__ModuleLoader__.load({
         });
       } catch (err) {
         if (err?.name === "AbortError") {
-          throw new Error(`${T("timeout")}（${REQUEST_TIMEOUT_MS / 1000}s）：${path.split("?")[0]}`);
+          throw new Error(`${T("timeout")}（${timeoutMs / 1000}s）：${path.split("?")[0]}`);
         }
         throw err;
       } finally {
@@ -835,6 +881,16 @@ window.__ModuleLoader__.load({
      * 不用 cashText：那个会把 12800 显示成「1 万」，盈亏要精确到元；
      * 而且盈亏必须带正负号，不然「赚 800」和「亏 800」看起来一样。
      */
+    /**
+     * 词条里的 {n} 占位替换。
+     *
+     * ctx.locale 没有插值能力，硬拼字符串又会让中英文语序绑死在代码里，
+     * 所以保留 {n} 占位、在这里补一个最小的替换。
+     */
+    function fill(text, n) {
+      return String(text ?? "").replace("{n}", String(n));
+    }
+
     function money(v) {
       const n = nOr(v);
       if (n === null) return "—";
@@ -2597,6 +2653,161 @@ window.__ModuleLoader__.load({
           h("span", { className: "skd-code" }, it.code)))) : null);
     }
 
+    /**
+     * 从截图认股票。
+     *
+     * 为什么不做弹窗：自选卡本身就在整页最下面，弹窗还要额外处理遮罩层级和 Esc；
+     * 这块面板是一次性的、用完就收，直接长在表格上方更省事，也不会盖住别的数据。
+     *
+     * 三个入口都给：粘贴（券商截图基本都在剪贴板里）、拖拽、点选文件。
+     * 粘贴挂在 document 上，因为面板里的 div 拿不到焦点，Ctrl+V 的目标通常是 body。
+     */
+    function ImageImport({ onAdd, onClose, initial }) {
+      const [busy, setBusy] = React.useState(false);
+      const [adding, setAdding] = React.useState(false);
+      const [err, setErr] = React.useState("");
+      const [probe, setProbe] = React.useState(null);
+      // initial 只给自检用：注入一份预置结果，免得为了断言候选列表去伪造 FileReader 与 fetch
+      const [res, setRes] = React.useState(initial ?? null);
+      const [pick, setPick] = React.useState(() => new Set((initial?.candidates ?? []).map((x) => x.code)));
+      const [done, setDone] = React.useState(0);
+      const fileRef = React.useRef(null);
+
+      // 先问一句本机能不能做中文 OCR：不同机器差的是系统语言包，
+      // 不问的话用户要贴完图、等到失败，才知道这台机器做不了
+      React.useEffect(() => {
+        let alive = true;
+        api("/ocr")
+          .then((r) => { if (alive) setProbe(r?.probe ?? null); })
+          .catch(() => { if (alive) setProbe(null); });
+        return () => { alive = false; };
+      }, []);
+
+      /** 读一张图并交给宿主识别。图片走 dataURL，宿主侧再按 base64 解出来 */
+      const readImage = (file) => {
+        if (!file || busy) return;
+        if (!/^image\//.test(file.type ?? "")) {
+          setErr(`不是图片：${file.type || file.name || "未知类型"}`);
+          return;
+        }
+        setErr(""); setRes(null); setDone(0); setPick(new Set()); setBusy(true);
+        if (typeof FileReader === "undefined") {
+          setBusy(false);
+          setErr("这个环境读不了本地文件");
+          return;
+        }
+        const fr = new FileReader();
+        fr.onload = async () => {
+          try {
+            // 60 秒：上传几百 KB 再等宿主起 PowerShell 认图，用行情的 15 秒太紧
+            const r = await api("/ocr", { image: String(fr.result) }, 60000);
+            setRes(r);
+            setPick(new Set((r?.candidates ?? []).map((x) => x.code)));
+          } catch (e) {
+            setErr(String(e?.message ?? e));
+          } finally {
+            setBusy(false);
+          }
+        };
+        fr.onerror = () => { setBusy(false); setErr("这个文件读不出来"); };
+        fr.readAsDataURL(file);
+      };
+
+      React.useEffect(() => {
+        // 自检环境里的 document 是个只有几个方法的桩件，没有事件系统；
+        // 不判一下，这个 effect 会在挂载时抛异常，把整块面板一起带崩
+        const doc = typeof document === "undefined" ? null : document;
+        if (typeof doc?.addEventListener !== "function") return undefined;
+        const onPaste = (e) => {
+          const items = e.clipboardData?.items ?? [];
+          for (const it of items) {
+            if (it.kind !== "file" || !/^image\//.test(it.type ?? "")) continue;
+            const f = it.getAsFile();
+            if (!f) continue;
+            e.preventDefault();
+            readImage(f);
+            return;
+          }
+        };
+        doc.addEventListener("paste", onPaste);
+        return () => doc.removeEventListener("paste", onPaste);
+        // readImage 只碰 setState（引用稳定），锁空依赖不会拿到过期闭包
+      }, []);
+
+      const cands = res?.candidates ?? [];
+      const unmatched = res?.unmatched ?? [];
+      const usable = probe?.ok !== false;
+
+      const toggle = (code, on) => setPick((s) => {
+        const next = new Set(s);
+        if (on) next.add(code); else next.delete(code);
+        return next;
+      });
+
+      const submit = async () => {
+        if (pick.size === 0 || adding) return;
+        setAdding(true); setErr("");
+        try {
+          const n = await onAdd([...pick]);
+          setDone(n ?? pick.size);
+          setRes(null);
+          setPick(new Set());
+        } catch (e) {
+          setErr(String(e?.message ?? e));
+        } finally {
+          setAdding(false);
+        }
+      };
+
+      return h("div", { className: "skd-imgbox" },
+        h("div", { className: "skd-imghead" },
+          h("span", { className: "skd-imghint", title: T("hintFromImage") }, T("imgDrop")),
+          h("button", { className: "skd-btn", type: "button", onClick: onClose }, T("imgClose"))),
+        probe?.ok === false
+          ? h(Msg, { text: T("imgOff"), err: true, hint: probe?.error ?? "" })
+          : null,
+        usable
+          ? h("div", {
+            className: "skd-imgdrop",
+            onClick: () => fileRef.current?.click(),
+            onDragOver: (e) => { e.preventDefault(); },
+            onDrop: (e) => { e.preventDefault(); readImage(e.dataTransfer?.files?.[0]); },
+          }, busy ? T("imgBusy") : T("imgDrop"))
+          : null,
+        h("input", {
+          ref: fileRef, type: "file", accept: "image/png,image/jpeg,image/bmp,image/gif",
+          style: { display: "none" },
+          onChange: (e) => { readImage(e.target.files?.[0]); e.target.value = ""; },
+        }),
+        err ? h(Msg, { text: err, err: true }) : null,
+        done > 0 ? h(Msg, { text: fill(T("imgAdded"), done) }) : null,
+        res ? (cands.length === 0
+          ? h(Msg, { text: T("imgNone"), err: true, hint: (res.lines ?? []).join(" / ") })
+          : h("div", { className: "skd-imglist" },
+            ...cands.map((c) => h("label", { key: c.code, className: "skd-imgrow" },
+              h("input", {
+                type: "checkbox", checked: pick.has(c.code),
+                onChange: (e) => toggle(c.code, e.target.checked),
+              }),
+              h("span", { className: "skd-imgname" }, c.name || c.code),
+              h("span", { className: "skd-code" }, c.code),
+              c.kind === "fund" ? h("span", { className: "skd-tag" }, T("fundTag")) : null,
+              h("span", {
+                className: "skd-tag",
+                title: c.matchedBy === "code" ? T("imgHintCode") : T("imgHintName"),
+              }, c.matchedBy === "code" ? "代码" : "名称"))))) : null,
+        cands.length > 0
+          ? h("div", { className: "skd-imgfoot" },
+            h("span", { className: "skd-meta" },
+              fill(T("imgFound"), cands.length),
+              unmatched.length > 0 ? ` · ${fill(T("imgUnmatched"), unmatched.length)}` : ""),
+            h("button", {
+              className: "skd-btn", "data-primary": "1", type: "button",
+              disabled: pick.size === 0 || adding, onClick: submit,
+            }, adding ? T("imgAdding") : fill(T("imgAdd"), pick.size)))
+          : null);
+    }
+
     function Settings({ config, info, save, onMigrate }) {
       const [draft, setDraft] = React.useState(config);
       const [saved, setSaved] = React.useState(false);
@@ -2633,6 +2844,8 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = React.useState("board");
       const [meta, setMeta] = React.useState(null);
       const [msg, setMsg] = React.useState("");
+      // 图片识别面板开着没有。关掉就整个卸载，免得 document 上的粘贴监听一直挂着
+      const [imgOpen, setImgOpen] = React.useState(false);
       // 只存代码，不存整条报价：存整条的话轮询刷新后明细会停在旧价格上，看起来像行情卡死了
       const [sel, setSel] = React.useState(null);
       /**
@@ -2720,6 +2933,23 @@ window.__ModuleLoader__.load({
         if (!watchGroup || (watchGroup.items ?? []).includes(it.code)) return;
         const next = withGroup((items) => [...items, it.code]);
         if (next) await save(next);
+      };
+      /**
+       * 一次加入多只（图片识别出来的候选）。
+       *
+       * 必须一次 POST 全部写进去：patchConfig 走的是整份配置覆盖，
+       * 逐只保存会互相把对方冲掉，最后只剩最后一只。
+       *
+       * @returns {Promise<number>} 实际新增的只数（已在自选里的不重复加）
+       */
+      const addCodes = async (codes) => {
+        if (!watchGroup) return 0;
+        const have = new Set(watchGroup.items ?? []);
+        const add = (codes ?? []).filter((c) => c && !have.has(c));
+        if (add.length === 0) return 0;
+        const next = withGroup((items) => [...items, ...add]);
+        if (next) await save(next);
+        return add.length;
       };
       const removeCode = async (code) => {
         const next = withGroup((items) => items.filter((x) => x !== code));
@@ -2917,8 +3147,15 @@ window.__ModuleLoader__.load({
                   notify: notifyPerm,
                   onEnableNotify: enableNotify,
                 })),
+              // 图片入口放在搜索框左边：两个都是「往自选里加东西」，摆一起才好找
+              h("button", {
+                className: "skd-btn", type: "button", title: T("hintFromImage"),
+                "data-on": imgOpen ? "1" : "0",
+                onClick: () => setImgOpen((v) => !v),
+              }, T("fromImage")),
               h(SearchBox, { onPick: addCode })),
           },
+            imgOpen ? h(ImageImport, { onAdd: addCodes, onClose: () => setImgOpen(false) }) : null,
             // 自选表与详情也改成左右分栏：以前点一行，详情在表格下方长出来，
             // 看完 K 线还要滚回来点下一只。这里和板块/涨停下钻用的是同一个 SplitView。
             h("div", { className: "skd-drill-body", style: { paddingTop: 0 } },
@@ -3186,6 +3423,9 @@ window.__ModuleLoader__.load({
         // 配置页现在有两个入口，独立那个要能单独渲染出来才算数 ——
         // 它自己取 /state，跟整页那条路径不共享状态，整页绿了不代表它也绿。
         SettingsTab,
+        // 图片识别面板：三个分支（能识别 / 本机没有 OCR / 认出候选）都得能渲染出来。
+        // 「没装语言包时按钮点了没反应」这种故障，只靠肉眼点一次是碰不到的。
+        ImageImport, fill,
       },
     };
   },

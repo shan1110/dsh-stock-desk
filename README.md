@@ -72,11 +72,29 @@
 编辑入口在**每一行的末尾**，点谁编谁：只有这一行的格子变成输入框，「保存 / 取消」也只作用于这一行，
 其他行照常显示行情。保存才生效，取消全部丢弃 —— 避免误触直接改动持仓数据。
 
-自选支持搜索添加，股票与场内基金均可。
+自选支持搜索添加，股票与场内基金均可；也支持**从截图认出股票**，见下一节。
 
 ![自选与持仓](docs/images/watchlist.png)
 
 ![编辑态：点行尾的「编辑」，只有该行变成输入框，保存才生效](docs/images/watchlist-edit.png)
+
+### 从截图认股票
+
+自选卡头上有一个「图片」按钮：把券商的自选或持仓截图贴进去（`Ctrl+V` / 拖拽 / 选文件都行），
+插件认出里面的股票，列成候选，勾选后一次加入自选 —— 不用再一个代码一个代码地敲。
+
+识别在本机完成，走 Windows 自带的 OCR（`Windows.Media.Ocr`），不联网、不上传图片。
+匹配以**股票名**为主、代码为辅：实测中文名基本全对，而数字会被错认（`600519` 认成 `600S19`），
+所以代码要先按错认表还原，再落进内置代码池（5575 只股票 + 1707 只场内基金）才算命中。
+候选上会标出这一行是「按代码命中」还是「按名称命中」，方便你复核。
+
+已知的识别边界：
+
+- 需要系统装有**中文（简体）OCR 语言包**。没装时面板会直接说明，不会让你贴完图才发现。
+- 只认 PNG / JPEG / BMP / GIF。WebP 请另存后再贴。
+- 券商只显示简称时可能对不上全名，这类情况宁可不出候选，也不猜。
+- 2 字股票名不参与包含匹配（像「中信」这种片段在任何长文本里都会命中，会把候选刷满）。
+- 识别错了的代价只是多一条候选或少一条，不会被自动写进自选 —— 加不加由你勾。
 
 ### 个股详情
 
@@ -230,13 +248,15 @@ plugin_manager(set_plugin, target: "include:stock-desk", enabled: true)
 ## 测试
 
 ```powershell
-foreach ($t in @("test-tencent","test-sources","test-boards","test-market","test-tools","test-client")) {
+foreach ($t in @("test-tencent","test-sources","test-boards","test-market","test-tools","test-client","test-ocr")) {
   node "tools\$t.mjs"
 }
 node "tools\test-contract.mjs"    # 需要 GUI 在 http://127.0.0.1:8820 运行
 ```
 
 全部套件应退出码 0。`test-contract.mjs` 直接请求运行中的 HTTP 路由，逐个核对客户端读取的字段路径。
+`test-ocr.mjs` 的纯函数部分在任何机器上都必须过；真实识别那段依赖本机中文 OCR 语言包，
+没装时打印 `SKIP` 而不是 `FAIL` —— 换台机器就红一遍的自检，很快就不会有人看它了。
 
 断言的具体约定与被测行为见 [开发与自检](docs/开发与自检.md)。
 
@@ -257,6 +277,7 @@ lib/routes.js        HTTP 接口，统一返回 { ok, data }
 lib/store.js         自选、持仓与界面配置的读写
 lib/tools.js         6 个 agent 工具（defineTool）
 lib/universe.js      全市场代码池（data/universe.json，5575 只股票 + 1707 只基金）
+lib/ocr.js           图片识别：调 Windows 自带 OCR，再把文本对到代码池上
 lib/cache.js         请求缓存、数据源健康度、递增冷却
 lib/session.js       交易时段判定（竞价 / 交易中 / 午休 / 已收盘）
 lib/format.js        数字格式化与数据来源标注
@@ -271,9 +292,13 @@ tools/               探针、构建脚本、自检套件
 全部返回 `{ ok, data }` 信封：
 
 ```
-GET  /api/stock-desk/{state,dashboard,quote,board,pool,kline,minute,search,diag}
-POST /api/stock-desk/{config,migrate}
+GET  /api/stock-desk/{state,dashboard,quote,board,pool,kline,minute,search,diag,ocr}
+POST /api/stock-desk/{config,migrate,ocr}
 ```
+
+`POST /ocr` 的请求体是 `{ "image": "data:image/png;base64,..." }`，上限 8 MB（其余接口是 256 KB）；
+`GET /ocr` 只回答「这台机器能不能做中文 OCR」。只做识别与匹配，不落盘、不改配置 ——
+写自选仍然走 `POST /config`。
 
 ## 文档
 
