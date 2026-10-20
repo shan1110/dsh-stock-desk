@@ -239,12 +239,15 @@ check('代码池文件存在', readFileSync(join(ROOT, 'data', 'universe.json'),
 
 // ---- 明细视图：把 §8 的验尸标准变成机器判定 ------------------------------------
 const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, QuoteDetail, QuoteTable, IndexStrip, fieldText, positionRows, rangeRatio, orderRatio, cashText, money, Holdings, MonitorBar, DeskBoundary,
+  rowEditDraft, mergeEditDraft,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
   desk, DeskPage, DeskButton, Pill, SettingsTab } = mod.__test ?? {};
 check('导出了自检入口 __test',
   Boolean(QuoteDetail && QuoteTable && IndexStrip && fieldText && positionRows
     && BreadthBar && LimitGrid && BoardGrid && BoardDrill && desk && DeskPage && DeskButton && Pill));
+check('导出了逐行编辑的两个纯函数（草稿只装一行 / 按行合并）',
+  Boolean(rowEditDraft && mergeEditDraft));
 
 // 单位写错不报错，只会安静地差几个数量级。下面两个数是真实接口取的：
 //   贵州茅台 amount=450006（万元）→ 45.00 亿
@@ -1349,7 +1352,7 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
     alerts: { sh600519: { low: 1200, high: 1400 } } };
   const base = { list: ROWS, watch: true, onRemove: () => {}, onPick: () => {}, config: CFG };
 
-  const ro = QuoteTable({ ...base, editing: false, draft: null });
+  const ro = QuoteTable({ ...base, editingCode: null, draft: null });
   const rot = texts(ro).join('|');
   check('自选表里带出了成本与份额', rot.includes('1200') && rot.includes('100'), rot.slice(0, 240));
   check('自选表算出今日盈亏 −74.00', rot.includes('-74.00'), rot.slice(0, 240));
@@ -1359,14 +1362,15 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
 
   const DRAFT = { positions: { sh600519: { cost: 1200, shares: 100 } },
     alerts: { sh600519: { low: 1200, high: 1400 } } };
-  const ed = QuoteTable({ ...base, editing: true, draft: DRAFT, onChange: () => {} });
+  const ed = QuoteTable({ ...base, editingCode: 'sh600519', draft: DRAFT, onChange: () => {} });
   const allIns = collectEls(ed, []).filter((n) => n.type === 'input');
   const ins = allIns.filter((n) => n.props?.type === 'number');
   check('编辑态出现成本/份额/低价/高价四个数字输入框', ins.length === 4, String(ins.length));
   check('输入框带出草稿的值（成本,份额,低价,高价）',
     ins.map((x) => x.props?.value).join(',') === '1200,100,1200,1400',
     ins.map((x) => x.props?.value).join(','));
-  check('另有一个「今买」勾选框', allIns.filter((n) => n.props?.type === 'checkbox').length === 1);
+  check('另有两个勾选框：今买 + 持有', allIns.filter((n) => n.props?.type === 'checkbox').length === 2,
+    String(allIns.filter((n) => n.props?.type === 'checkbox').length));
 
   // ---- 旧行情不能冒充今天的盈亏 ----
   // 用户实测：2026-10-20 早 9:09 未开盘时，腾讯仍返回 10-19 的快照，
@@ -1383,7 +1387,7 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
         time: '20261019161439' } }];
     const yCfg = { positions: { sz159558: { cost: 0.905, shares: 1000 } }, alerts: {} };
     const ytxt = texts(QuoteTable({ list: yRows, watch: true, onPick: () => {}, config: yCfg,
-      editing: false, draft: null })).join('|');
+      editingCode: null, draft: null })).join('|');
     check('昨天的行情：今日盈亏显示「—」，不冒充今天的', !ytxt.includes('-46.00'), ytxt.slice(0, 240));
     check('昨天的行情：名称旁标出「昨收」', ytxt.includes('昨收'), ytxt.slice(0, 200));
     check('昨天的行情：持仓盈亏照常算（-15.00 是真实盈亏）', ytxt.includes('-15.00'), ytxt.slice(0, 240));
@@ -1394,17 +1398,17 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
       fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700,
         time: tKey + '101500' } }];
     const ttxt = texts(QuoteTable({ list: tRows, watch: true, onPick: () => {}, config: yCfg,
-      editing: false, draft: null })).join('|');
+      editingCode: null, draft: null })).join('|');
     check('今天的行情：今日盈亏按昨收算出来（-46.00）', ttxt.includes('-46.00'), ttxt.slice(0, 240));
     check('今天的行情：不再标「昨收」', !ttxt.includes('昨收'), ttxt.slice(0, 200));
 
     // 今买带日期 → 只有等于行情所属日期才改基准，昨天勾的今天自动失效
     const yesCfg = { positions: { sz159558: { cost: 0.905, shares: 1000, todayBuy: tKey.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3') } }, alerts: {} };
     const ytxt2 = texts(QuoteTable({ list: yRows, watch: true, onPick: () => {}, config: yesCfg,
-      editing: false, draft: null })).join('|');
+      editingCode: null, draft: null })).join('|');
     check('今买是昨天勾的 → 对昨天的行情不生效（今日盈亏仍是「—」）', !ytxt2.includes('-15.00') || ytxt2.includes('—'), ytxt2.slice(0, 240));
     const ttxt2 = texts(QuoteTable({ list: tRows, watch: true, onPick: () => {}, config: yesCfg,
-      editing: false, draft: null })).join('|');
+      editingCode: null, draft: null })).join('|');
     check('今买是今天勾的 → 对今天的行情生效（今日盈亏 = 持仓盈亏 = -15.00）',
       ttxt2.includes('-15.00'), ttxt2.slice(0, 240));
   }
@@ -1449,7 +1453,7 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
   // 否则今天刚买的票会显示一笔按昨收算、其实没发生的亏损
   // （实测：昨收 0.936 / 成本 0.905 / 现价 0.89 / 1000 份 → 按昨收 −46，实际 −15）
   const TODAY = { positions: { sh600519: { cost: 1320, shares: 100, todayBuy: true } }, alerts: {} };
-  const tdays = texts(QuoteTable({ list: ROWS, watch: true, onPick: () => {}, config: TODAY, editing: false, draft: null })).join('|');
+  const tdays = texts(QuoteTable({ list: ROWS, watch: true, onPick: () => {}, config: TODAY, editingCode: null, draft: null })).join('|');
   // (1328.26 − 1320) × 100 = +826.00
   check('今买的仓位：今日盈亏按成本价算（+826.00），不是按昨收（−74.00）',
     tdays.includes('+826.00') && !tdays.includes('-74.00'), tdays.slice(0, 260));
@@ -1457,27 +1461,136 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
   check('今买的仓位在成本价旁标「今买」', tdaysTag, tdays.slice(0, 200));
 
   const calls = [];
-  const ed2 = QuoteTable({ ...base, editing: true, draft: DRAFT, onChange: (...a) => calls.push(a) });
-  collectEls(ed2, []).filter((n) => n.type === 'input')[0].props.onChange({ target: { value: '1500' } });
+  const ed2 = QuoteTable({ ...base, editingCode: 'sh600519', draft: DRAFT, onChange: (...a) => calls.push(a) });
+  // 按类型找成本价那个输入框，不要用 inputs[0]：持有勾选框插在成本之前，
+  // 按下标取会拿到勾选框，断言就会变成「改成本价传了 held」这种假失败。
+  const costInput = collectEls(ed2, []).find((n) => n.type === 'input' && n.props?.type === 'number');
+  costInput.props.onChange({ target: { value: '1500' } });
   check('改成本价只是把新值交给上层改草稿，不直接保存',
     calls[0]?.[0] === 'pos' && calls[0]?.[1] === 'sh600519' && calls[0]?.[2] === 'cost' && calls[0]?.[3] === '1500',
     JSON.stringify(calls[0]));
 
-  const none = texts(QuoteTable({ ...base, config: {}, editing: false, draft: null })).join('|');
+  const none = texts(QuoteTable({ ...base, config: {}, editingCode: null, draft: null })).join('|');
   check('没填持仓时那几列显示「—」', none.includes('—'), none.slice(0, 200));
 
-  const noWatch = texts(QuoteTable({ list: ROWS, watch: false, onPick: () => {}, config: CFG, editing: false, draft: null })).join('|');
+  const noWatch = texts(QuoteTable({ list: ROWS, watch: false, onPick: () => {}, config: CFG, editingCode: null, draft: null })).join('|');
   check('非自选表（watch=false）不渲染持仓列', !/成本价/.test(noWatch), noWatch.slice(0, 160));
 
-  // 卡片头上的按钮：只读态是「编辑」，编辑态是「保存 / 取消」
-  const bar = (editing) => texts(MonitorBar({
+  // 编辑入口已经完全移到行尾（用户：编辑按钮放到每一行后）。
+  // 卡片头上再留一个「编辑」会让两处各有一个入口，且卡片头那个是整表生效的。
+  const bar = texts(MonitorBar({
     pollSec: 10, onPoll: () => {}, notify: 'granted', onEnableNotify: () => {},
-    editing, onEdit: () => {}, onSave: () => {}, onCancel: () => {},
   })).join('|');
-  check('只读态卡片头上有「编辑」按钮、没有「保存」',
-    bar(false).includes('编辑') && !bar(false).includes('保存'), bar(false));
-  check('编辑态卡片头上是「保存 / 取消」，不再是「编辑」',
-    bar(true).includes('保存') && bar(true).includes('取消') && !bar(true).includes('编辑'), bar(true));
+  check('卡片头上不再有「编辑 / 保存 / 取消」',
+    !bar.includes('编辑') && !bar.includes('保存') && !bar.includes('取消'), bar);
+  check('卡片头仍然保留刷新间隔', bar.includes('刷新间隔') || /秒/.test(bar), bar);
+
+  // ---- 持有标记（用户：自选能不能再加一个持有标记） ----
+  {
+    const HELD = { positions: { sh600519: { cost: 1200, shares: 100, held: true } }, alerts: {} };
+    const heldTree = QuoteTable({ ...base, config: HELD, editingCode: null, draft: null });
+    const heldTxt = texts(heldTree).join('|');
+    check('持有标记：表头有「持有」列', heldTxt.includes('持有'), heldTxt.slice(0, 200));
+    // 用类名找标签而不是找「持」字 —— 表头的「持有」也含「持」，用字面判断会永远为真
+    const heldTags = collectEls(heldTree, []).filter((n) => String(n.props?.className ?? '').includes('skd-tag-held'));
+    check('持有标记：标记过的行渲染出一个「持」标签', heldTags.length === 1, String(heldTags.length));
+
+    const notHeldTree = QuoteTable({ ...base, config: { positions: { sh600519: { cost: 1200, shares: 100 } }, alerts: {} },
+      editingCode: null, draft: null });
+    check('持有标记：没标记的行不渲染「持」标签',
+      collectEls(notHeldTree, []).filter((n) => String(n.props?.className ?? '').includes('skd-tag-held')).length === 0);
+
+    // 只读态不能有勾选框（避免误触）
+    check('持有标记在只读态是纯文本，不是勾选框',
+      collectEls(heldTree, []).filter((n) => n.type === 'input').length === 0);
+
+    // held 与 cost / shares 互不依赖：只标持有、不填成本也要能存下来
+    const onlyHeld = rowEditDraft({ positions: { sh600519: { held: true } }, alerts: {} }, 'sh600519');
+    check('可以只标持有而不填成本', onlyHeld.positions.sh600519.held === true
+      && onlyHeld.positions.sh600519.cost === undefined, JSON.stringify(onlyHeld.positions));
+
+    // 勾选框走布尔分支，不能被当成非法数字删掉（今买踩过这个坑）
+    const onHeld = applyDraftEdit(rowEditDraft(CFG, 'sh600519'), 'pos', 'sh600519', 'held', true);
+    check('勾持有：草稿里写进 held=true', onHeld.positions.sh600519.held === true, JSON.stringify(onHeld.positions));
+    check('勾持有：成本与份额没被弄丢',
+      onHeld.positions.sh600519.cost === 1200 && onHeld.positions.sh600519.shares === 100,
+      JSON.stringify(onHeld.positions));
+    const offHeld = applyDraftEdit(onHeld, 'pos', 'sh600519', 'held', false);
+    check('取消持有：held 被删掉而不是存成 false',
+      offHeld.positions.sh600519.held === undefined, JSON.stringify(offHeld.positions));
+  }
+
+  // ---- 逐行编辑：草稿只装一行，保存按行合并 ----
+  {
+    const CFG2 = { positions: { sh600519: { cost: 1200, shares: 100 }, sz000001: { cost: 10, shares: 500 } },
+      alerts: { sh600519: { low: 1200, high: 1400 } } };
+    const D = rowEditDraft(CFG2, 'sz000001');
+    check('草稿只装当前这一行',
+      Object.keys(D.positions).length === 1 && D.positions.sz000001.cost === 10, JSON.stringify(D.positions));
+    check('草稿里不会带上别的行', D.positions.sh600519 === undefined, JSON.stringify(D.positions));
+    check('草稿里不会带上别的行的提醒', D.alerts.sh600519 === undefined, JSON.stringify(D.alerts));
+
+    const merged = mergeEditDraft(CFG2, 'sz000001',
+      { positions: { sz000001: { cost: 11, shares: 500, held: true } }, alerts: {} });
+    check('按行合并：改的是这一行',
+      merged.positions.sz000001.cost === 11 && merged.positions.sz000001.held === true,
+      JSON.stringify(merged.positions));
+    check('按行合并：别的行的持仓原样保留', merged.positions.sh600519?.cost === 1200, JSON.stringify(merged.positions));
+    check('按行合并：别的行的提醒原样保留', merged.alerts.sh600519?.low === 1200, JSON.stringify(merged.alerts));
+    check('按行合并：本来没有提醒的行不会凭空多出空对象',
+      merged.alerts.sz000001 === undefined, JSON.stringify(merged.alerts));
+
+    // 整行清空 → 该行从配置里删除，而不是留一个 {}
+    const emptied = mergeEditDraft(CFG2, 'sz000001', { positions: {}, alerts: {} });
+    check('清空整行后该行被删除，不留空壳',
+      emptied.positions.sz000001 === undefined, JSON.stringify(emptied.positions));
+    check('清空整行后别的行不受影响',
+      emptied.positions.sh600519?.shares === 100, JSON.stringify(emptied.positions));
+  }
+
+  // ---- 行尾按钮与只编辑一行 ----
+  {
+    const rowTxt = texts(QuoteTable({ ...base, editingCode: null, draft: null })).join('|');
+    check('只读态每行行尾有「编辑」按钮', rowTxt.includes('编辑'), rowTxt.slice(0, 240));
+    check('只读态行尾仍然有「移除」', rowTxt.includes('移除'), rowTxt.slice(0, 240));
+    check('只读态行尾没有「保存」', !rowTxt.includes('保存'), rowTxt.slice(0, 240));
+
+    const TWO = [
+      { code: 'sh600519', name: '贵州茅台', kind: 'stock',
+        fields: { price: 1328.26, prevClose: 1329, changePct: -0.06, turnover: 0.27, amount: 450006 } },
+      { code: 'sz000001', name: '平安银行', kind: 'stock',
+        fields: { price: 11.2, prevClose: 11.1, changePct: 0.9, turnover: 0.5, amount: 1000 } }];
+    const CFG3 = { positions: { sh600519: { cost: 1200, shares: 100 }, sz000001: { cost: 10, shares: 500 } }, alerts: {} };
+    const oneEditing = QuoteTable({ list: TWO, watch: true, onPick: () => {}, config: CFG3,
+      editingCode: 'sz000001', draft: rowEditDraft(CFG3, 'sz000001'), onChange: () => {},
+      onEdit: () => {}, onSave: () => {}, onCancel: () => {} });
+    const numIns = collectEls(oneEditing, []).filter((n) => n.type === 'input' && n.props?.type === 'number');
+    check('逐行编辑：只有当前行变成输入框（成本/份额/低价/高价 4 个）', numIns.length === 4, String(numIns.length));
+    check('逐行编辑：输入框带的是当前这一行的值',
+      numIns.map((x) => x.props?.value).join(',') === '10,500,,',
+      numIns.map((x) => x.props?.value).join(','));
+    const editTxt = texts(oneEditing).join('|');
+    check('逐行编辑：当前行显示「保存 / 取消」',
+      editTxt.includes('保存') && editTxt.includes('取消'), editTxt.slice(0, 240));
+    check('逐行编辑：另一行仍是只读文本，成本照常显示', editTxt.includes('1200'), editTxt.slice(0, 300));
+  }
+
+  // ---- 今买勾选状态的回归闸 ----
+  // store.js 把 todayBuy 落成日期字符串，勾选框原来写的是 === true，
+  // 于是刷新后勾是空的、今日盈亏却按成本算 —— 界面自相矛盾。
+  {
+    const tKey2 = todayKey().replace(/-/g, '');
+    const dateCfg = { positions: { sz159558: { cost: 0.905, shares: 1000,
+      todayBuy: todayKey() } }, alerts: {} };
+    const dateRows = [{ code: 'sz159558', name: '半导体设备ETF', kind: 'fund',
+      fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700,
+        time: tKey2 + '101500' } }];
+    const dEd = QuoteTable({ list: dateRows, watch: true, onPick: () => {}, config: dateCfg,
+      editingCode: 'sz159558', draft: rowEditDraft(dateCfg, 'sz159558'), onChange: () => {} });
+    const boxes = collectEls(dEd, []).filter((n) => n.type === 'input' && n.props?.type === 'checkbox');
+    check('今买存的是日期字符串时，勾选框仍显示为已勾',
+      boxes.some((x) => x.props?.checked === true), JSON.stringify(boxes.map((x) => x.props?.checked)));
+  }
 }
 
 

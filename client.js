@@ -110,6 +110,9 @@ window.__ModuleLoader__.load({
       alertLow: "低价提醒",
       alertHigh: "高价提醒",
       todayBuyShort: "今买",
+      held: "持有",
+      heldTag: "持",
+      hintHeld: "标记这只股票当前是否持有。它只是给人看的标记，用来把已持仓的票和只观察的票分开；盈亏只按成本价和份额算，不受它影响。",
       staleTag: "昨收",
       hintStale: "这条行情还是上一个交易日的（今天还没开盘或该品种今天没成交），所以今日盈亏不显示 —— 免得把昨天的涨跌当成今天的。",
       nextRefresh: "刷新",
@@ -122,13 +125,13 @@ window.__ModuleLoader__.load({
       notifyOn: "电脑通知已开启",
       notifyDenied: "通知被拒绝，需在浏览器地址栏左侧的站点设置里允许",
       notifyUnsupported: "这个环境不支持系统通知",
-      holdingsHint: "点右上角「编辑」即可填成本价、份额和价格提醒；填完点「保存」才生效，点「取消」全部丢弃。",
+      holdingsHint: "点每一行末尾的「编辑」即可填成本价、份额、持有标记和价格提醒；填完点「保存」才生效，点「取消」全部丢弃。",
       notifyTitleLow: "跌破低价",
       notifyTitleHigh: "涨过高价",
       edit: "编辑",
       saveEdit: "保存",
       cancelEdit: "取消",
-      holdingsEditing: "编辑中：改完点「保存」才生效，点「取消」全部丢弃。",
+      holdingsEditing: "这一行正在编辑：改完点「保存」才生效，点「取消」全部丢弃。",
       crashTitle: "行情台渲染出错",
       crashHint: "把这段报错发给开发者即可定位。行情数据本身没问题，是界面这一层挂了。",
 
@@ -302,6 +305,9 @@ window.__ModuleLoader__.load({
       alertLow: "Low alert",
       alertHigh: "High alert",
       todayBuyShort: "bought today",
+      held: "Held",
+      heldTag: "held",
+      hintHeld: "Marks whether you currently hold this stock, to separate positions from names you only watch. P/L uses cost and shares only; this flag does not affect it.",
       staleTag: "prev close",
       hintStale: "This quote is from the previous trading day, so today's P/L is hidden instead of showing yesterday's move.",
       nextRefresh: "refresh",
@@ -314,13 +320,13 @@ window.__ModuleLoader__.load({
       notifyOn: "Desktop alerts on",
       notifyDenied: "Notifications blocked; allow them in the site settings",
       notifyUnsupported: "This environment does not support notifications",
-      holdingsHint: "Press Edit to fill cost, shares and price alerts; nothing is saved until you press Save.",
+      holdingsHint: "Press Edit at the end of a row to fill cost, shares, the held flag and price alerts; nothing is saved until you press Save.",
       notifyTitleLow: "below low alert",
       notifyTitleHigh: "above high alert",
       edit: "Edit",
       saveEdit: "Save",
       cancelEdit: "Cancel",
-      holdingsEditing: "Editing: nothing is saved until you press Save.",
+      holdingsEditing: "Editing this row: nothing is saved until you press Save.",
       crashTitle: "Quote desk render error",
       crashHint: "Send this message to the developer. The data is fine; the UI layer failed.",
 
@@ -555,6 +561,15 @@ window.__ModuleLoader__.load({
 .skd-htbl td:empty::after{content:"—";color:var(--skd-dim)}
 /* 成本价格子里附一个「今买」勾选框 */
 .skd-costcell{display:inline-flex;align-items:center;gap:5px}
+/* 持有标记列。窄列，不跟行情数字抢宽度 */
+.skd-htbl .skd-heldcol{width:44px;text-align:center;padding:2px 4px}
+/* 持有标记用品牌色描边而不是填充：填充色在这套主题里只能当描边用，
+   填满再配白字正是之前「点上去按钮变全白」那个坑 */
+.skd-tag-held{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
+.skd-heldedit{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+/* 行尾操作：两个小按钮并排，编辑态换成保存/取消，宽度别跳动 */
+.skd-htbl .skd-actcol{white-space:nowrap;text-align:right;padding:2px 4px}
+.skd-actbtns{display:inline-flex;align-items:center;gap:4px;justify-content:flex-end}
 /* 上一交易日的行情：标签变暗，别和今天的数据混在一起看 */
 .skd-tag-stale{opacity:.62;border-style:dashed}
 /* 刷新倒计时 */
@@ -1070,8 +1085,11 @@ window.__ModuleLoader__.load({
      */
     /**
      * 持仓卡右上角：刷新间隔 + 是否已开启电脑通知。
+     *
+     * 编辑 / 保存 / 取消不在这里 —— 已经下放到自选表的每个行尾。
+     * 一次只编一只股票时，把那三个按钮留在卡片头上，会让人以为「保存」保存的是整张表。
      */
-    function MonitorBar({ pollSec, onPoll, notify, onEnableNotify, editing, onEdit, onSave, onCancel }) {
+    function MonitorBar({ pollSec, onPoll, notify, onEnableNotify }) {
       return h("div", { className: "skd-tools" },
         h("label", { className: "skd-meta", title: T("hintPoll") },
           T("pollSec"),
@@ -1086,13 +1104,7 @@ window.__ModuleLoader__.load({
             disabled: notify === "unsupported" || notify === "denied",
             title: notify === "denied" ? T("notifyDenied") : notify === "unsupported" ? T("notifyUnsupported") : "",
             onClick: onEnableNotify,
-          }, notify === "denied" ? T("notifyDenied") : notify === "unsupported" ? T("notifyUnsupported") : T("enableNotify")),
-        // 显式的编辑入口：输入框平时不存在，避免误触
-        editing
-          ? h(React.Fragment, null,
-            h("button", { className: "skd-btn", "data-xs": "1", "data-primary": "1", type: "button", onClick: onSave }, T("saveEdit")),
-            h("button", { className: "skd-btn", "data-xs": "1", type: "button", onClick: onCancel }, T("cancelEdit")))
-          : h("button", { className: "skd-btn", "data-xs": "1", type: "button", onClick: onEdit }, T("edit")));
+          }, notify === "denied" ? T("notifyDenied") : notify === "unsupported" ? T("notifyUnsupported") : T("enableNotify")));
     }
 
     /**
@@ -1568,35 +1580,100 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 进入某一行编辑时，把这行的持仓与监控拷成草稿。
+     *
+     * 为什么草稿只装一行：编辑入口挂在行尾，一次只编一只。整表草稿的写法下
+     * 保存时必须整份提交，「保存」就天然带上了别的行 —— 编辑期间别处改过的行会被一起覆盖。
+     *
+     * @param {object} config 当前配置（含 positions / alerts）
+     * @param {string} code 要编辑的代码
+     * @returns {{positions: object, alerts: object}} 只含该代码的草稿
+     */
+    function rowEditDraft(config, code) {
+      const p = config?.positions?.[code];
+      const a = config?.alerts?.[code];
+      return {
+        positions: p ? { [code]: { ...p } } : {},
+        alerts: a ? { [code]: { ...a } } : {},
+      };
+    }
+
+    /**
+     * 把逐行草稿并回整份配置，得到可以直接提交的完整对象。
+     *
+     * 必须显式传 code：applyDraftEdit 在该行字段被清空时会把 code 从草稿里整个删掉，
+     * 于是「这一行被清空」和「这一行没动过」在草稿里长得一模一样。只有知道编的是谁，
+     * 才能判断该覆盖还是该删除。
+     *
+     * @param {object} config 当前配置
+     * @param {string} code 正在编辑的代码
+     * @param {{positions?: object, alerts?: object}} draft 该行的草稿
+     * @returns {{positions: object, alerts: object}} 完整配置片段，可直接交给 POST /config
+     */
+    function mergeEditDraft(config, code, draft) {
+      const pos = { ...(config?.positions ?? {}) };
+      const alerts = { ...(config?.alerts ?? {}) };
+      const p = draft?.positions?.[code];
+      const a = draft?.alerts?.[code];
+      // 空对象等于「这行什么都不要了」—— 删掉，别留一个 {} 在配置里
+      if (p && Object.keys(p).length > 0) pos[code] = p; else delete pos[code];
+      if (a && Object.keys(a).length > 0) alerts[code] = a; else delete alerts[code];
+      return { positions: pos, alerts };
+    }
+
+    /**
      * 自选表。持仓与价格监控**并进这张表**，不再另开一张。
      *
      * 为什么合并：成本、份额、盈亏、提醒本来就是「这一只自选股」的属性，
      * 分成两张表等于同一条信息要在两处各看一遍，还容易对不上行。
      * 用户的原话是「这应该是自选股票的一行吧」。
      *
-     * 只读态这些格是纯文本；编辑态才变成输入框（成本来自 config.positions，
-     * 编辑时来自 draft），与之前「先点编辑才能改」的交互一致。
+     * 只读态的格是纯文本，编辑态的格才是输入框。
+     *
+     * 编辑改成**逐行**：入口挂到每个行尾，点谁编谁，保存 / 取消也只作用于这一行。
+     * 原来那个按钮在卡片头上，一点就把 12 列同时变成输入框 —— 只想改一只股票，
+     * 却要面对满屏输入框，别的行也没法继续看行情。
+     *
+     * 「持有」是纯标记列：只读时显示「持」，编辑时是勾选框。它不参与盈亏计算。
+     *
+     * @param {string|null} editingCode 正在编辑的行代码，null 表示整表只读
      */
-    function QuoteTable({ list, watch, onRemove, onPick, config, editing, draft, onChange }) {
+    function QuoteTable({ list, watch, onRemove, onPick, config, editingCode, draft, onChange,
+      onEdit, onSave, onCancel }) {
       if (!Array.isArray(list) || list.length === 0) return h(Msg, { text: T("empty") });
       // 表格渲染时取一次「今天」，整张表用同一个基准，避免逐行调用跨过零点
       const today = todayKey();
-      const pos = editing ? (draft?.positions ?? {}) : (config?.positions ?? {});
-      const alerts = editing ? (draft?.alerts ?? {}) : (config?.alerts ?? {});
-      const cell = (code, kind, field, step) => (editing
-        ? h("input", {
-          className: "skd-input skd-num skd-hcell",
-          type: "number", step, min: "0", inputMode: "decimal",
-          value: (kind === "pos" ? pos[code]?.[field] : alerts[code]?.[field]) ?? "",
-          onChange: (e) => onChange?.(kind, code, field, e.target.value),
-        })
-        : h("span", { className: "skd-num skd-hval" },
-          nOr(kind === "pos" ? pos[code]?.[field] : alerts[code]?.[field]) === null
-            ? "—" : String(nOr(kind === "pos" ? pos[code]?.[field] : alerts[code]?.[field]))));
+      /** 该行该读哪份数据：正在编辑的那一行读草稿，其余读已保存的配置 */
+      const rowOf = (code, kind) => {
+        const s = editingCode === code ? draft : config;
+        return (kind === "pos" ? (s?.positions ?? {}) : (s?.alerts ?? {}))[code] ?? {};
+      };
+      /**
+       * 「当日买入」判定。老数据是 true，新数据是日期字符串，
+       * 只有等于行情所属日期才算数 —— 否则昨天勾的今天还生效。
+       *
+       * 勾选框的 checked 和今日盈亏的基准必须共用这一个判定：两边各写一份的话，
+       * 刷新后会出现「勾是空的、盈亏却按成本算」这种自相矛盾的界面。
+       */
+      const isBoughtToday = (one, qd) => one?.todayBuy === true || (qd !== null && one?.todayBuy === qd);
+      const cell = (code, kind, field, step) => {
+        const one = rowOf(code, kind);
+        return editingCode === code
+          ? h("input", {
+            className: "skd-input skd-num skd-hcell",
+            type: "number", step, min: "0", inputMode: "decimal",
+            value: one[field] ?? "",
+            onChange: (e) => onChange?.(kind, code, field, e.target.value),
+          })
+          : h("span", { className: "skd-num skd-hval" },
+            nOr(one[field]) === null ? "—" : String(nOr(one[field])));
+      };
 
       return h("table", { className: "skd-tbl skd-htbl" },
         h("thead", null, h("tr", null,
           h("th", null, T("watchlist")),
+          // 持有标记紧挨名称：它是这一行的属性，不是行情指标，别混进后面涨跌那一片
+          watch ? h("th", { className: "skd-heldcol" }, T("held")) : null,
           h("th", null, T("price")),
           h("th", null, T("pct")),
           h("th", null, T("turnover")),
@@ -1623,6 +1700,19 @@ window.__ModuleLoader__.load({
             (() => { const qd = quoteDate(F(q)); 
               return qd !== null && qd !== today
                 ? h("span", { className: "skd-tag skd-tag-stale", title: T("hintStale") }, T("staleTag")) : null; })())),
+          // 持有标记列。空着不画东西，让 td:empty::after 补「—」，
+          // 免得「未持有」和「没填过」在视觉上一样。
+          watch ? h("td", { key: "held", className: "skd-heldcol" },
+            editingCode === q.code
+              ? h("label", { className: "skd-heldedit", title: T("hintHeld") },
+                h("input", {
+                  type: "checkbox",
+                  checked: rowOf(q.code, "pos").held === true,
+                  onChange: (e) => onChange?.("pos", q.code, "held", e.target.checked),
+                }))
+              : (rowOf(q.code, "pos").held === true
+                ? h("span", { className: "skd-tag skd-tag-held", title: T("hintHeld") }, T("heldTag"))
+                : null)) : null,
           h("td", { className: `skd-num ${dir(F(q).changePct)}` }, fieldText("price", F(q).price, q)),
           h("td", { className: `skd-num ${dir(F(q).changePct)}` }, fieldText("changePct", F(q).changePct, q)),
           h("td", { className: "skd-num" }, nOr(F(q).turnover) === null ? "—" : `${num(F(q).turnover)}%`),
@@ -1631,7 +1721,7 @@ window.__ModuleLoader__.load({
             const f = F(q);
             const price = nOr(f.price);
             const prev = nOr(f.prevClose);
-            const one = pos[q.code] ?? {};
+            const one = rowOf(q.code, "pos");
             const cost = nOr(one.cost);
             const shares = nOr(one.shares);
             // 行情不是今天的 → 今日盈亏无从谈起，显示「—」并在名称旁标「昨收」。
@@ -1643,35 +1733,54 @@ window.__ModuleLoader__.load({
             // todayBuy 既可能是 true（旧数据），也可能是日期字符串（新数据）；
             // 是日期时只有等于行情所属日期才算「当日买入」—— 否则昨天勾的今天还生效，
             // 今日盈亏就退化成了持仓盈亏。
-            const bought = one.todayBuy === true || (qd !== null && one.todayBuy === qd);
+            const bought = isBoughtToday(one, qd);
             const base = bought ? cost : prev;
             const todayPnl = stale || shares === null || price === null || base === null
               ? null : (price - base) * shares;
             const holdPnl = shares !== null && price !== null && cost !== null ? (price - cost) * shares : null;
             const cls = (v) => "skd-num " + (v === null ? "" : v > 0 ? "skd-up" : v < 0 ? "skd-down" : "");
             return [
-              h("td", { key: "cost" }, editing
+              h("td", { key: "cost" }, editingCode === q.code
                 ? h("span", { className: "skd-costcell" },
                   cell(q.code, "pos", "cost", "0.001"),
                   h("label", { className: "skd-todaybuy", title: T("hintTodayBuy") },
                     h("input", {
                       type: "checkbox",
-                      checked: pos[q.code]?.todayBuy === true,
+                      checked: bought,
                       onChange: (e) => onChange?.("pos", q.code, "todayBuy", e.target.checked),
                     }),
                     T("todayBuyShort")))
                 : h("span", { className: "skd-costcell" },
                   cell(q.code, "pos", "cost", "0.001"),
-                  pos[q.code]?.todayBuy === true ? h("span", { className: "skd-tag" }, T("todayBuyShort")) : null)),
+                  bought ? h("span", { className: "skd-tag", title: T("hintTodayBuy") }, T("todayBuyShort")) : null)),
               h("td", { key: "shares" }, cell(q.code, "pos", "shares", "1")),
               h("td", { key: "tp", className: cls(todayPnl) }, money(todayPnl)),
               h("td", { key: "hp", className: cls(holdPnl) }, money(holdPnl)),
               h("td", { key: "lo" }, cell(q.code, "alert", "low", "0.001")),
               h("td", { key: "hi" }, cell(q.code, "alert", "high", "0.001")),
-              h("td", { key: "rm" }, h("button", {
-                className: "skd-btn", "data-xs": "1", type: "button",
-                onClick: () => onRemove?.(q.code),
-              }, T("remove"))),
+              // 行尾操作：只读时是「编辑 / 移除」，编辑这一行时换成「保存 / 取消」。
+              // 编辑入口放行尾而不是卡片头，是为了让人一眼看出「我在改哪一只」——
+              // 卡片头的按钮离具体的行太远，编辑态又整表生效，很容易改错行。
+              h("td", { key: "rm", className: "skd-actcol" },
+                editingCode === q.code
+                  ? h("span", { className: "skd-actbtns" },
+                    h("button", {
+                      className: "skd-btn", "data-xs": "1", "data-primary": "1", type: "button",
+                      onClick: () => onSave?.(q.code),
+                    }, T("saveEdit")),
+                    h("button", {
+                      className: "skd-btn", "data-xs": "1", type: "button",
+                      onClick: () => onCancel?.(q.code),
+                    }, T("cancelEdit")))
+                  : h("span", { className: "skd-actbtns" },
+                    h("button", {
+                      className: "skd-btn", "data-xs": "1", type: "button",
+                      onClick: () => onEdit?.(q.code),
+                    }, T("edit")),
+                    h("button", {
+                      className: "skd-btn", "data-xs": "1", type: "button",
+                      onClick: () => onRemove?.(q.code),
+                    }, T("remove")))),
             ];
           })() : [watch ? null : null].filter(Boolean)),
           watch ? null : null))));
@@ -2629,14 +2738,33 @@ window.__ModuleLoader__.load({
 
       // 电脑通知的权限状态。浏览器不支持时同步降级成 unsupported，按钮据此禁用并说明原因。
       /**
-       * 持仓编辑草稿。
+       * 逐行编辑状态。
        *
-       * null = 只读态（输入框根本不存在，杜绝误触）。
-       * 非 null = 编辑态，改的是这份草稿；点「保存」才写回宿主，点「取消」整份丢掉。
+       * editCode = null 表示整表只读（输入框根本不存在，杜绝误触）；非 null 表示
+       * 只有这一行变成输入框，改的是 editDraft —— 里面**只装这一行**。
+       *
+       * 为什么要拆成两个状态：草稿只含当前行，点「保存」时按行合并回整份配置，
+       * 别的行即便在编辑期间被轮询刷新过也不会被这份草稿覆盖。
+       *
        * 为什么不让输入框直接改 config：那样每敲一个字符就打一次保存接口，
        * 而且轮询回来会把正在编辑的值冲掉。
        */
-      const [holdEdit, setHoldEdit] = React.useState(null);
+      const [editCode, setEditCode] = React.useState(null);
+      const [editDraft, setEditDraft] = React.useState(null);
+      /** 进入某一行的编辑态：草稿只拷这一行的持仓与监控，别的行不参与 */
+      const beginEdit = (code) => {
+        setEditDraft(rowEditDraft(cur, code));
+        setEditCode(code);
+      };
+      /** 保存这一行：按行并回整份配置再提交，队列里别的行原样不动 */
+      const saveEdit = async (code) => {
+        const target = code ?? editCode;
+        if (!target) return;
+        await patchConfig(mergeEditDraft(cur, target, editDraft));
+        setEditCode(null);
+        setEditDraft(null);
+      };
+      const cancelEdit = () => { setEditCode(null); setEditDraft(null); };
       // 每秒跳动一次，用来把「距下次刷新还有几秒」算出来。
       // 不用 setInterval 去改数据，只改一个时间戳 —— 重渲染代价很小。
       const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -2769,17 +2897,6 @@ window.__ModuleLoader__.load({
                 onPoll: (n) => patchConfig({ ui: { ...(cur?.ui ?? {}), pollSec: n } }),
                 notify: notifyPerm,
                 onEnableNotify: enableNotify,
-                editing: holdEdit !== null,
-                onEdit: () => setHoldEdit({
-                  positions: { ...(cur?.positions ?? {}) },
-                  alerts: { ...(cur?.alerts ?? {}) },
-                }),
-                onSave: async () => {
-                  if (!holdEdit) return;
-                  await patchConfig({ positions: holdEdit.positions, alerts: holdEdit.alerts });
-                  setHoldEdit(null);
-                },
-                onCancel: () => setHoldEdit(null),
               })),
           },
             // 自选表与详情也改成左右分栏：以前点一行，详情在表格下方长出来，
@@ -2790,15 +2907,16 @@ window.__ModuleLoader__.load({
                 onClose: () => { setSel(null); setPicked(null); },
               }) : null, [
                 // 编辑态 / 没填过持仓时各给一句提示，放在表格上方
-                holdEdit
+                editCode
                   ? h("div", { className: "skd-meta skd-hold-hint" }, T("holdingsEditing"))
                   : (Object.keys(cur?.positions ?? {}).length === 0 && Object.keys(cur?.alerts ?? {}).length === 0
                     ? h("div", { className: "skd-meta skd-hold-hint" }, T("holdingsHint")) : null),
                 h(QuoteTable, {
                   list: watchRows, watch: true, onRemove: removeCode, onPick: setSel,
-                  config: cur, editing: holdEdit !== null, draft: holdEdit,
+                  config: cur, editingCode: editCode, draft: editDraft,
                   onChange: (kind, code, field, raw) =>
-                    setHoldEdit((d) => applyDraftEdit(d, kind, code, field, raw)),
+                    setEditDraft((d) => applyDraftEdit(d, kind, code, field, raw)),
+                  onEdit: beginEdit, onSave: saveEdit, onCancel: cancelEdit,
                 }),
               ]))),
           h(SourceBar, { sources: data?.sources })));
@@ -3028,6 +3146,9 @@ window.__ModuleLoader__.load({
         QuoteTable, QuoteDetail, IndexStrip, fieldText, stampText,
         positionRows, rangeRatio, orderRatio, cashText, money,
         MonitorBar, DeskBoundary, DeskSafe, applyDraftEdit,
+        // 逐行编辑的两个纯函数：草稿只装一行、保存按行合并。
+        // 这两条逻辑埋在 DeskPage 闭包里就测不到，而它们决定「保存会不会顺手改掉别的行」。
+        rowEditDraft, mergeEditDraft,
         RefreshMeter, nextRefreshSec, todayKey, quoteDate, clockText,
         // 降级分支也要能渲染出来才算数：某个板块维度整段缺失时不能把整块画成空白。
         // 光看源码里写了 Array.isArray(x) ? x : [] 不算验过。

@@ -28,6 +28,22 @@ const m = createMarket();
   const n3 = normalizeConfig({ positions: { sh600519: { cost: 1200, shares: 100, todayBuy: 'xxx' } } });
   check('todayBuy 是脏值时丢弃，不猜日期', n3.config.positions.sh600519.todayBuy === undefined,
     JSON.stringify(n3.config.positions.sh600519));
+
+  // 持有标记：它是纯标记，与成本/份额互不依赖，但必须能穿过 pickPositions 的白名单 ——
+  // 白名单漏一个字段的表现是「界面上勾了，保存后刷新又变回没勾」，且不报任何错。
+  const h1 = normalizeConfig({ positions: { sz002739: { cost: 8.545, shares: 200, held: true } } });
+  check('held=true 能被保存下来', h1.config.positions.sz002739.held === true,
+    JSON.stringify(h1.config.positions.sz002739));
+  check('带上 held 之后成本与份额仍在',
+    h1.config.positions.sz002739.cost === 8.545 && h1.config.positions.sz002739.shares === 200,
+    JSON.stringify(h1.config.positions.sz002739));
+  const h2 = normalizeConfig({ positions: { sz002739: { cost: 8.545, shares: 200, held: false } } });
+  check('held=false 不落盘（未标记就等于不持有，不留空壳）',
+    h2.config.positions.sz002739.held === undefined && h2.config.positions.sz002739.cost === 8.545,
+    JSON.stringify(h2.config.positions.sz002739));
+  const h3 = normalizeConfig({ positions: { sz002739: { held: true } } });
+  check('只标持有、不填成本也能单独存在', h3.config.positions.sz002739?.held === true,
+    JSON.stringify(h3.config.positions.sz002739));
 }
 
 const SKIP_SESSION = await m.session();
@@ -92,10 +108,33 @@ expectData('两个口径量级一致（差异不应超过一倍）',
   Math.abs(br.limitUp - (ov.limitUp?.today?.num ?? br.limitUp)) <= Math.max(20, (ov.limitUp?.today?.num ?? 1)),
   `本机 ${br.limitUp} vs 同花顺 ${ov.limitUp?.today?.num}`);
 
+/**
+ * 开盘至今已经过的交易分钟数（午休不计，上限 242）。
+ *
+ * 分时是「每分钟一根」，点数必然随时间增长。原来两处写死 `> 200`，
+ * 只有 14:00 之后才成立 —— 上午跑必红，于是这条红灯天天出现、也就被无视了。
+ * 用时钟算出下限，收盘时照样能验完整性，10 点钟也不会误报。
+ *
+ * 时区换算不依赖宿主时区：先把时间戳推到 UTC+8，再读 UTC 字段。
+ */
+function elapsedTradingMinutes(now = new Date()) {
+  const bj = new Date(now.getTime() + 8 * 3600e3);
+  const m = bj.getUTCHours() * 60 + bj.getUTCMinutes();
+  const OPEN = 9 * 60 + 30, MORNING_END = 11 * 60 + 30, AFTERNOON = 13 * 60, CLOSE = 15 * 60;
+  if (m <= OPEN) return 0;
+  if (m <= MORNING_END) return m - OPEN;
+  if (m < AFTERNOON) return 120;              // 午休：上午累计 120 分钟
+  if (m <= CLOSE) return 120 + (m - AFTERNOON);
+  return 242;
+}
+
 console.log('\n【5.5】分时：个股与指数');
 {
+  // 接口偶尔滞后几分钟，留 8 分钟余量
+  const elapsed = elapsedTradingMinutes();
+  const minPts = Math.max(1, elapsed - 8);
   const st = await m.minute('sh600519');
-  expectData('个股分时有数据', st.points.length > 200, `${st.points.length} 点`);
+  expectData('个股分时有数据', st.points.length >= minPts, `${st.points.length} 点，开盘约 ${elapsed} 分钟`);
   check('个股分时首点是 09:30', st.points[0].time === '0930', st.points[0].time);
   check('个股分时末点不晚于 15:00（盘后竞价不进分时图）',
     st.points[st.points.length - 1].time <= '1500', st.points[st.points.length - 1].time);
@@ -114,7 +153,7 @@ console.log('\n【5.5】分时：个股与指数');
   // 画出来均价线会贴着坐标轴底部，但不会报任何错。
   const ix = await m.minute('sh000001');
   const ixLast = ix.points[ix.points.length - 1];
-  expectData('指数分时有数据', ix.points.length > 200, `${ix.points.length} 点`);
+  expectData('指数分时有数据', ix.points.length >= minPts, `${ix.points.length} 点，开盘约 ${elapsed} 分钟`);
   expectData('指数分时的均价与点位同量级（额量法在此会算出个位数）',
     ixLast.avg > ixLast.price * 0.8 && ixLast.avg < ixLast.price * 1.2,
     `均价 ${ixLast.avg} vs 点位 ${ixLast.price}`);
