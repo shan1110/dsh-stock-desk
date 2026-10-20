@@ -624,6 +624,8 @@ window.__ModuleLoader__.load({
 .skd-btn[data-primary="1"]{border-color:transparent;background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base)}
 .skd-btn[data-xs="1"]{font-size:11px;padding:2px 7px;border-radius:5px}
 .skd-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* 刷新相关的一组：nowrap 保证倒计时、刷新间隔、通知不会互相拆到两行去 */
+.skd-toolgroup{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
 .skd-sr{position:relative;flex:1 1 200px;min-width:170px}
 .skd-sr-list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow-y:auto;
   border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay);
@@ -1090,7 +1092,10 @@ window.__ModuleLoader__.load({
      * 一次只编一只股票时，把那三个按钮留在卡片头上，会让人以为「保存」保存的是整张表。
      */
     function MonitorBar({ pollSec, onPoll, notify, onEnableNotify }) {
-      return h("div", { className: "skd-tools" },
+      // 返回 Fragment，不再自己套一层 .skd-tools。
+      // 外面那一层已经是 flex 容器，这里再包一层会让「刷新间隔 / 通知」成为整体、
+      // 一换行就双双挪到下一行，把卡头里的倒计时单独留在上一行。
+      return h(React.Fragment, null,
         h("label", { className: "skd-meta", title: T("hintPoll") },
           T("pollSec"),
           h("select", {
@@ -1671,7 +1676,9 @@ window.__ModuleLoader__.load({
 
       return h("table", { className: "skd-tbl skd-htbl" },
         h("thead", null, h("tr", null,
-          h("th", null, T("watchlist")),
+          // 表头是「名称」不是「自选」：这一列列的是股票名字，而卡片本身已经叫自选了，
+          // 再写一遍自选只是把标题重复进表头，占地方还答非所问。
+          h("th", null, T("stock")),
           // 持有标记紧挨名称：它是这一行的属性，不是行情指标，别混进后面涨跌那一片
           watch ? h("th", { className: "skd-heldcol" }, T("held")) : null,
           h("th", null, T("price")),
@@ -2887,17 +2894,20 @@ window.__ModuleLoader__.load({
             title: T("watchlist"),
             // 搜索 + 刷新间隔 + 通知 + 编辑开关，都挂在这一张卡上
             extra: h("div", { className: "skd-tools" },
-              h(RefreshMeter, {
-                remainSec: nextRefreshSec(lastAt, cur?.ui?.pollSec, nowMs),
-                updatedAt: clockText(data?.at),
-              }),
-              h(SearchBox, { onPick: addCode }),
-              h(MonitorBar, {
-                pollSec: cur?.ui?.pollSec ?? 10,
-                onPoll: (n) => patchConfig({ ui: { ...(cur?.ui ?? {}), pollSec: n } }),
-                notify: notifyPerm,
-                onEnableNotify: enableNotify,
-              })),
+              // 倒计时、刷新间隔、通知状态讲的是同一件事（这张表多久刷一次、刷了没有），
+              // 裹进一个不换行的组：卡头空间不够时整组挪到下一行，而不是把倒计时挤走。
+              h("div", { className: "skd-toolgroup" },
+                h(RefreshMeter, {
+                  remainSec: nextRefreshSec(lastAt, cur?.ui?.pollSec, nowMs),
+                  updatedAt: clockText(data?.at),
+                }),
+                h(MonitorBar, {
+                  pollSec: cur?.ui?.pollSec ?? 10,
+                  onPoll: (n) => patchConfig({ ui: { ...(cur?.ui ?? {}), pollSec: n } }),
+                  notify: notifyPerm,
+                  onEnableNotify: enableNotify,
+                })),
+              h(SearchBox, { onPick: addCode })),
           },
             // 自选表与详情也改成左右分栏：以前点一行，详情在表格下方长出来，
             // 看完 K 线还要滚回来点下一只。这里和板块/涨停下钻用的是同一个 SplitView。

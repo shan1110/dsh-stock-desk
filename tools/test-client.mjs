@@ -1485,6 +1485,24 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
     !bar.includes('编辑') && !bar.includes('保存') && !bar.includes('取消'), bar);
   check('卡片头仍然保留刷新间隔', bar.includes('刷新间隔') || /秒/.test(bar), bar);
 
+  // 卡头里「倒计时 / 刷新间隔 / 通知」必须在一行。原来的 MonitorBar 自己套了一层
+  // .skd-tools，嵌套的 flex 容器会作为整体换行，把倒计时单独留在上一行。
+  {
+    const barTree = MonitorBar({ pollSec: 10, onPoll: () => {}, notify: 'granted', onEnableNotify: () => {} });
+    const nested = collectEls(barTree, [])
+      .filter((n) => String(n.props?.className ?? '').includes('skd-tools'));
+    check('MonitorBar 不再自己套一层 .skd-tools（嵌套 flex 会把整组推到下一行）',
+      nested.length === 0, String(nested.length));
+    check('MonitorBar 把刷新间隔与通知平铺出来，交给外层同一个 flex 行',
+      texts(barTree).join('|').includes('刷新间隔') && texts(barTree).join('|').includes('电脑通知已开启'),
+      texts(barTree).join('|'));
+  }
+
+  // 表头叫「名称」不叫「自选」：卡片标题已经是自选，表头再写一遍是重复。
+  check('自选表第一列表头是「名称」，不是「自选」',
+    texts(QuoteTable({ ...base, editingCode: null, draft: null }))[0] === '名称',
+    texts(QuoteTable({ ...base, editingCode: null, draft: null }))[0]);
+
   // ---- 持有标记（用户：自选能不能再加一个持有标记） ----
   {
     const HELD = { positions: { sh600519: { cost: 1200, shares: 100, held: true } }, alerts: {} };
