@@ -1,0 +1,26 @@
+# 依赖：node_modules/@deepseek-ai 是指向 DSH profile 的 Junction，
+# 对本仓库而言它只是解析路径的桥，任何机器上都不应由 Git 管理
+node_modules/
+
+# 上一版插件（dsh-stock-watch）的备份，1.4 MB，不属于本项目
+.backup/
+
+# 第三方 skill（含他人 LICENSE），不随本仓库分发
+.preserved-skills/
+
+# 打包产物
+*.tgz
+*.tar.gz
+
+# 探针脚本的临时输出
+tools/.last-client.txt
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# npm
+npm-debug.log*
+.npmrc.local

@@ -1,0 +1,51 @@
+{
+  "name": "dsh-stock-desk",
+  "version": "0.1.0",
+  "description": "A 股行情工作台：整页看盘、常驻药丸，并给 agent 提供真实行情取数工具。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "stock",
+    "a-share",
+    "行情",
+    "股票",
+    "看盘"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "lib",
+    "locale",
+    "data/universe.json"
+  ],
+  "author": "cai shan",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ],
+      "platform": "web"
+    },
+    "manifestVersion": 1
+  }
+}
