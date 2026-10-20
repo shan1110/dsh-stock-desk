@@ -1,9 +1,6 @@
 # dsh-stock-desk · A股行情台
 
-DSh 插件。在 Harness Web UI 侧边栏加一个行情台整页，同时给 agent 挂 6 个只在需要时才占上下文的行情工具。
-
-替代 `dsh-stock-watch`：那一版只有指数和自选两张表，且自选存在浏览器 localStorage 里，agent 看不到。
-这一版把自选挪到宿主侧的配置文件，界面和 agent 读同一份数据。
+DSH 插件。在 Harness Web UI 侧边栏加一个行情台整页，同时给 agent 挂 6 个只在需要时才占上下文的行情工具。
 
 ## 安装（使用者）
 
