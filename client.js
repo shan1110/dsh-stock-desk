@@ -496,6 +496,9 @@ window.__ModuleLoader__.load({
   font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary)}
 .skd-card-b{padding:6px 0}
 .skd-tbl{width:100%;border-collapse:collapse}
+/* 换手/成交额换成三条均价后自选表变宽了：窄窗口下横向滚动，
+   而不是让最右边那列「编辑」被挤出可视区、点不到 */
+.skd-tblwrap{overflow-x:auto}
 /* 表头可点排序。按钮长在 th 里，去掉边框背景只留文字，
    否则每个表头都会变成一个方框，比表头本身还显眼 */
 .skd-th-sort{appearance:none;border:0;background:none;padding:0;margin:0;font:inherit;
