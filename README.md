@@ -230,14 +230,18 @@
 
 ### 从 npm
 
+当前版本 **2026.10.20**（首个正式版）。最新版本见
+[npm](https://www.npmjs.com/package/dsh-stock-desk) 或
+[Releases](https://github.com/shan1110/dsh-stock-desk/releases)。
+
 ```powershell
-plugin_manager(action: install_bundle, target: "dsh-stock-desk@0.1.0")
+plugin_manager(action: install_bundle, target: "dsh-stock-desk@2026.10.20")
 ```
 
 或使用 CLI：
 
 ```bash
-dsh plugin --profile <你的 profile> add dsh-stock-desk@0.1.0
+dsh plugin --profile <你的 profile> add dsh-stock-desk@2026.10.20
 ```
 
 装完刷新浏览器页面，侧边栏出现行情台图标。
