@@ -1847,6 +1847,21 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   check('「加入」那半区自己可点（.skd-imgpick）', /\.skd-imgpick\{[^}]*cursor:pointer/.test(clientSrc), '');
   check('「持有」勾选框有自己的一列（.skd-imgheld）', /\.skd-imgheld\{/.test(clientSrc), '');
   check('「图片」按钮有按下态（.skd-btn[data-on="1"]）', /\.skd-btn\[data-on="1"\]\{/.test(clientSrc), '');
+
+  // 入口的位置与名字是用户明确指定的：「图片按钮应该在搜索框后，叫图片解析股票」。
+  // 用 DOM 顺序断言，而不是拿源码里的先后顺序 —— 后者换个写法就失效。
+  {
+    const els = collectEls(DeskPage?.() ?? null, []);
+    const srIdx = els.findIndex((e) => e.props?.className === 'skd-sr');
+    const imgBtn = els.find((e) => e.props?.['data-img'] === '1');
+    const btnIdx = imgBtn ? els.indexOf(imgBtn) : -1;
+    check('卡头里有搜索框', srIdx >= 0, String(srIdx));
+    check('卡头里有图片按钮（data-img=1 唯一标记）', Boolean(imgBtn), String(btnIdx));
+    check('图片按钮排在搜索框之后', srIdx >= 0 && btnIdx > srIdx, `搜索框 ${srIdx} / 按钮 ${btnIdx}`);
+    // 只取子节点文字：texts 连 props.title 一起收，标题里那句说明会混进来
+    const label = [...texts(imgBtn?.children), ...texts(imgBtn?.props?.children)].join('');
+    check('按钮写的是「图片解析股票」', label === '图片解析股票', label);
+  }
   // 卡头那排必须不换行：图片按钮是第三个定宽小件，多一个就可能把这一行挤成两行
   check('卡头工具条仍然锁定不换行', /\.skd-card-h>\.skd-tools\{[^}]*nowrap/.test(clientSrc), '');
   check('通用 .skd-tools 仍然允许换行（设置页那排按钮靠它）',

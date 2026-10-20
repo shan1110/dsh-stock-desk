@@ -103,7 +103,7 @@ window.__ModuleLoader__.load({
       hintRange: "当日区间位置：现价在「最低—最高」之间的相对位置，0% 是最低、100% 是最高。",
       fundTag: "基金",
       searchHint: "可搜股票代码/名称，也可搜场内基金（ETF/LOF），例如 510300、创业板ETF。",
-      fromImage: "图片",
+      fromImage: "图片解析股票",
       hintFromImage: "从截图里认股票：把券商的持仓/自选截图贴进来，自动认出代码与名称，勾选后加入自选，不用手打。持仓截图可以顺手把右边「持有」一起勾上。",
       imgDrop: "粘贴截图（Ctrl+V）、把图片拖到这里，或点这里选文件",
       imgBusy: "正在识别…",
@@ -314,7 +314,7 @@ window.__ModuleLoader__.load({
       hintRange: "Intraday position: where the last price sits between today's low (0%) and high (100%).",
       fundTag: "Fund",
       searchHint: "Search stocks by code or name, or on-exchange funds (ETF/LOF) such as 510300.",
-      fromImage: "Image",
+      fromImage: "Read a screenshot",
       hintFromImage: "Read a broker screenshot: paste it in, get the codes and names back, tick the ones you want and add them without typing. For a holdings screenshot, tick 持有 on the right as well.",
       imgDrop: "Paste a screenshot (Ctrl+V), drop it here, or click to pick a file",
       imgBusy: "Reading the image…",
@@ -666,6 +666,9 @@ window.__ModuleLoader__.load({
    原先这里是 wrap + .skd-sr 的 min-width:170px，两者一叠加就必然换行；
    作用域限定在卡头内，设置页那排按钮仍用上面通用的 wrap。 */
 .skd-card-h>.skd-tools{flex-wrap:nowrap;flex:1 1 auto;min-width:0;justify-content:flex-end}
+/* 卡头里的按钮自己不许折行：它是定宽小件，空间不够时该让搜索框变窄。
+   「图片解析股票」是六个字，不锁住会在窄窗口里断成两行把这一行撑高 */
+.skd-card-h>.skd-tools>.skd-btn{flex:0 0 auto;white-space:nowrap}
 /* 刷新相关的一组：nowrap 保证倒计时、刷新间隔、通知不会互相拆到两行去 */
 .skd-toolgroup{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:0 0 auto}
 .skd-sr{position:relative;flex:0 1 220px;min-width:90px}
@@ -3230,13 +3233,16 @@ window.__ModuleLoader__.load({
                   notify: notifyPerm,
                   onEnableNotify: enableNotify,
                 })),
-              // 图片入口放在搜索框左边：两个都是「往自选里加东西」，摆一起才好找
+              h(SearchBox, { onPick: addCode }),
+              // 图片入口排在搜索框右边：两者都是「往自选里加东西」，
+              // 手打的路径在前、贴图的路径在后，符合「先试最简单的」的使用顺序
               h("button", {
                 className: "skd-btn", type: "button", title: T("hintFromImage"),
                 "data-on": imgOpen ? "1" : "0",
+                // 自检要能在一堆带 data-on 的按钮里唯一定位到它，好断言它排在搜索框之后
+                "data-img": "1",
                 onClick: () => setImgOpen((v) => !v),
-              }, T("fromImage")),
-              h(SearchBox, { onPick: addCode })),
+              }, T("fromImage"))),
           },
             imgOpen ? h(ImageImport, { onAdd: addCodes, onClose: () => setImgOpen(false) }) : null,
             // 自选表与详情也改成左右分栏：以前点一行，详情在表格下方长出来，
