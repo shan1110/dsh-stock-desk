@@ -1,6 +1,6 @@
 {
   "name": "dsh-stock-desk",
-  "version": "2026.10.21",
+  "version": "0.1.1",
   "description": "A 股行情工作台：整页看盘、常驻药丸，并给 agent 提供真实行情取数工具。",
   "keywords": [
     "dsh",
