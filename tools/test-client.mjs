@@ -1496,6 +1496,21 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
     check('MonitorBar 把刷新间隔与通知平铺出来，交给外层同一个 flex 行',
       texts(barTree).join('|').includes('刷新间隔') && texts(barTree).join('|').includes('电脑通知已开启'),
       texts(barTree).join('|'));
+
+    // 卡头要一行：光把组锁成 nowrap 不够，还得让搜索框让位。
+    // 卡头里的 .skd-tools 若是 wrap、或 .skd-sr 的 min-width 太大，这一行照样会拆成两行。
+    const cssRule = (sel) => new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\{([^}]*)\\}')
+      .exec(css)?.[1] ?? '';
+    const headTools = cssRule('.skd-card-h>.skd-tools');
+    const srRule = cssRule('.skd-sr');
+    check('自选卡头右半区永不换行', /flex-wrap:\s*nowrap/.test(headTools), headTools);
+    check('搜索框是卡头里唯一可伸缩的那个（min-width 不能放太大）',
+      /flex:\s*1/.test(srRule)
+        && Number((/min-width:\s*([0-9]+)px/.exec(srRule) ?? [])[1] ?? 999) <= 90,
+      srRule);
+    // 通用 .skd-tools 仍保留 wrap，设置页那排按钮的行为不能被改头换面
+    check('通用 .skd-tools 仍是 wrap（设置页那排按钮不受影响）',
+      /flex-wrap:\s*wrap/.test(cssRule('.skd-tools')), cssRule('.skd-tools'));
   }
 
   // 表头叫「名称」不叫「自选」：卡片标题已经是自选，表头再写一遍是重复。
