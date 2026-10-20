@@ -1,7 +1,7 @@
 # dsh-stock-desk
 
 面向 DSH 的 A 股行情工作台插件。在 Web UI 侧边栏提供一个整页行情台，
-在对话页右下角常驻一个药丸，并向 agent 注册 6 个行情取数工具。
+在对话页右下角常驻一个药丸，并向 agent 注册 7 个行情取数工具。
 
 界面与 agent 读同一份自选数据，不存在「界面改了、agent 还看旧值」这类两套状态问题。
 
@@ -213,9 +213,10 @@
 | `limit_up_board` | 涨停与连板梯队、炸板池明细、板块涨停分布 |
 | `sector_rank` | 板块涨跌幅排行，含主力净流入与领涨股 |
 | `stock_kline` | 个股 / 指数 / ETF 的 K 线、区间统计与技术指标（均线 / ATR / 量比 / 区间位置） |
+| `stock_analysis` | 单只股票的事实表：技术指标、历史形态频率（含基准与 95% 区间）、位置表、四条判定与参考位 |
 | `stock_watchlist` | 读取用户自选分组 |
 
-工具定义全部注册，但模型只在真正需要时才读取其 schema；6 个定义合计约 1.3 KB。
+工具定义全部注册，但模型只在真正需要时才读取其 schema；7 个定义合计约 1.5 KB。
 `stock_watchlist` 读的就是界面上那份自选，两边不会不一致。
 
 ### 界面偏好
@@ -359,7 +360,7 @@ lib/eastmoney.js     东方财富：分钟线 K 线兜底
 lib/market.js        多源编排、TTL 缓存、降级与源健康度
 lib/routes.js        HTTP 接口，统一返回 { ok, data }
 lib/store.js         自选、持仓与界面配置的读写
-lib/tools.js         6 个 agent 工具（defineTool）
+lib/tools.js         7 个 agent 工具（defineTool）
 lib/universe.js      全市场代码池（data/universe.json，5575 只股票 + 1707 只基金）
 lib/ocr.js           图片识别：调 Windows 自带 OCR，再把文本对到代码池上
 lib/cache.js         请求缓存、数据源健康度、递增冷却

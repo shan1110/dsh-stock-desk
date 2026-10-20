@@ -72,7 +72,7 @@ const defs = mod.buildToolDefs(market, store);
 const byName = new Map(defs.map((d) => [d.name, d]));
 
 console.log('【1】定义本身的形状（defineTool 的契约在 DSH 里，这里只查我自己写的部分）');
-check('共 6 个工具', defs.length === 6, defs.map((d) => d.name).join(', '));
+check('共 7 个工具', defs.length === 7, defs.map((d) => d.name).join(', '));
 check('每个都有 name / description / parameters / execute',
   defs.every((d) => typeof d.name === 'string' && typeof d.description === 'string'
     && d.parameters && typeof d.execute === 'function'));
@@ -126,6 +126,7 @@ const tOverviewLight = await run('market_overview', { breadth: false });
 const tBoard = await run('limit_up_board', { detail: true, full: false });
 const tSector = await run('sector_rank', { board: 'industry', direction: 'up', limit: 5 });
 const tKline = await run('stock_kline', { code: 'sh600519', period: 'day', limit: 20 });
+const tAnalysis = await run('stock_analysis', { code: 'sz002739' });
 const tWatch = await run('stock_watchlist', { include_quotes: false }, { expectTime: false });
 const tWatchQ = await run('stock_watchlist', { include_quotes: true });
 
@@ -157,6 +158,17 @@ if (sectorGot) {
     /拿不到|无法|失败|异常/.test(tSector ?? ''), (tSector ?? '').split('\n').slice(0, 3).join(' / '));
 }
 check('K 线含区间统计', /区间 .* → .*/.test(tKline ?? ''));
+// 单股分析：四段必须都在。少一段说明渲染分支断了，而模型拿到残缺的表会自己补
+check('单股分析含技术指标与排列', /排列 .+/.test(tAnalysis ?? ''), (tAnalysis ?? '').split('\n')[1]);
+check('单股分析含历史频率表与基准', /【历史形态频率】/.test(tAnalysis ?? '') && /基准：/.test(tAnalysis ?? ''));
+check('单股分析含位置表', /【位置表】/.test(tAnalysis ?? '') && /S\.lo20|R\.ma20/.test(tAnalysis ?? ''));
+check('单股分析含四条判定', /【四条判定】/.test(tAnalysis ?? '') && /四条/.test(tAnalysis ?? ''));
+check('单股分析的四条判定逐条给了成立/不成立与原因',
+  (tAnalysis ?? '').match(/\d\)\s+\S+\s*(成立|不成立)\s+\S/g)?.length === 4,
+  String((tAnalysis ?? '').match(/\d\)\s+\S+\s+(成立|不成立)/g)?.length));
+check('单股分析不给结论性指令，只给判定位与编号',
+  /位置区|没有满足全部四条/.test(tAnalysis ?? '') && !/建议买入|应该买|立即买/.test(tAnalysis ?? ''));
+check('单股分析写明历史频率不等于未来概率', /历史频率不等于未来概率/.test(tAnalysis ?? ''));
 check('自选工具给出配置文件路径', /配置文件 .*config\.json/.test(tWatch ?? ''));
 check('自选工具不带报价时不编时间', !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(tWatch ?? ''));
 check('自选工具带报价时有时间', /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(tWatchQ ?? ''));
@@ -196,7 +208,7 @@ for (const [label, text] of [['板块榜', tSector], ['总览指数', tOverview]
 }
 
 console.log('\n──────────────── 以下为各工具产出的真实文本 ────────────────');
-for (const [n, t] of [['stock_quote', tQuote], ['market_overview', tOverview], ['limit_up_board', tBoard], ['sector_rank', tSector], ['stock_kline', tKline], ['stock_watchlist', tWatch]]) {
+for (const [n, t] of [['stock_quote', tQuote], ['market_overview', tOverview], ['limit_up_board', tBoard], ['sector_rank', tSector], ['stock_kline', tKline], ['stock_analysis', tAnalysis], ['stock_watchlist', tWatch]]) {
   console.log(`\n===== ${n} =====\n${t}`);
 }
 
