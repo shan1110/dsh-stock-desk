@@ -195,6 +195,9 @@ window.__ModuleLoader__.load({
       comfortable: "宽松",
       compact: "紧凑",
       pillIndex: "药丸显示指数",
+      pillShow: "显示药丸",
+      hintPillShow: "关掉药丸后回到这里重新打开。药丸是页面右上角那个可拖动的小条，显示一个指数和自选涨跌家数。",
+      hidePill: "隐藏药丸（可在设置页重新打开）",
       save: "保存",
       saved: "已保存",
       remove: "移除",
@@ -405,6 +408,9 @@ window.__ModuleLoader__.load({
       comfortable: "Comfortable",
       compact: "Compact",
       pillIndex: "Pill index",
+      pillShow: "Show the pill",
+      hintPillShow: "Turn it back on here after closing it. The pill is the draggable strip in the top-right corner showing one index plus the watchlist up/down counts.",
+      hidePill: "Hide the pill (turn it back on in settings)",
       save: "Save",
       saved: "Saved",
       remove: "Remove",
@@ -748,6 +754,9 @@ window.__ModuleLoader__.load({
 .skd-set{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;padding:12px}
 .skd-f{display:flex;flex-direction:column;gap:5px}
 .skd-f-l{font-size:12px;color:var(--dsw-alias-label-secondary)}
+/* 勾选框那一行：默认是竖排的表单行，这一行要竖排标签 + 并排的勾选框 */
+.skd-f-chk{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px}
+.skd-f-chk>input{accent-color:var(--dsw-alias-brand-primary);margin:0}
 .skd-path{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;
   color:var(--skd-dim);word-break:break-all}
 /* 药丸：常驻在页面上，不挡内容，可拖动 */
@@ -858,6 +867,35 @@ window.__ModuleLoader__.load({
     }
 
     const desk = createDesk();
+
+    /**
+     * 药丸的显示/隐藏。存在浏览器本地，不进配置文件（它属于「这台机器的界面状态」）。
+     *
+     * 做成一个能订阅的小 store，而不是让每个组件自己去读 localStorage：
+     * 叉掉药丸的按钮在药丸里，重新打开的开关在设置页，两处不共享状态的话
+     * 勾上开关药丸也不会当场回来，得刷新页面 —— 而「叉掉后打不开」正是这次要修的问题。
+     */
+    const pillFlag = (() => {
+      const subs = new Set();
+      const KEY = "stock-desk.pill.hidden";
+      /** 读一次就够：localStorage 在同一个标签页里只有自己会改，改的时候走 set() */
+      let hidden = null;
+      const read = () => {
+        try { return window.localStorage.getItem(KEY) === "1"; } catch { return false; }
+      };
+      return {
+        get() { if (hidden === null) hidden = read(); return hidden; },
+        set(v) {
+          hidden = Boolean(v);
+          try {
+            if (hidden) window.localStorage.setItem(KEY, "1");
+            else window.localStorage.removeItem(KEY);
+          } catch { /* 存不下就算了，至少这次会话里是生效的 */ }
+          for (const fn of subs) fn(hidden);
+        },
+        subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
+      };
+    })();
 
     function useDesk() {
       const [s, set] = React.useState(desk.get());
@@ -3048,6 +3086,9 @@ window.__ModuleLoader__.load({
     function Settings({ config, info, save, onMigrate }) {
       const [draft, setDraft] = React.useState(config);
       const [saved, setSaved] = React.useState(false);
+      // 药丸的显示与否是浏览器本地状态，不进配置文件，所以单独一个 state
+      const [pillOff, setPillOff] = React.useState(() => pillFlag.get());
+      React.useEffect(() => pillFlag.subscribe(setPillOff), []);
       React.useEffect(() => setDraft(config), [config]);
       const setUi = (k, v) => setDraft((d) => ({ ...d, ui: { ...d.ui, [k]: v } }));
       const setPill = (k, v) => setDraft((d) => ({ ...d, pill: { ...d.pill, [k]: v } }));
@@ -3067,6 +3108,12 @@ window.__ModuleLoader__.load({
           h("select", { className: "skd-select", value: draft.pill?.indexCode ?? "sh000001",
             onChange: (e) => setPill("indexCode", e.target.value) },
             ...(info?.indexCatalog ?? []).map((c) => h("option", { key: c.code, value: c.code }, `${c.name} ${c.code}`)))),
+        // 药丸那个 × 只是隐藏，这里是它唯一的回程车票
+        h("label", { className: "skd-f skd-f-chk" }, h("span", { className: "skd-f-l" }, T("pillShow")),
+          h("input", { type: "checkbox", "data-pill": "1",
+            checked: !pillOff,
+            onChange: (e) => pillFlag.set(!e.target.checked) }),
+          h(Hint, { text: T("hintPillShow") })),
         h("div", { className: "skd-f" }, h("span", { className: "skd-f-l" }, T("configPath")),
           h("code", { className: "skd-path" }, info?.store?.path ?? "—")),
         h("div", { className: "skd-tools" },
@@ -3481,9 +3528,9 @@ window.__ModuleLoader__.load({
           return raw ? JSON.parse(raw) : null;
         } catch { return null; }
       });
-      const [hidden, setHidden] = React.useState(() => {
-        try { return window.localStorage.getItem("stock-desk.pill.hidden") === "1"; } catch { return false; }
-      });
+      // 隐藏状态与设置页共用同一个 store：在设置里勾上「显示药丸」当场就回来
+      const [hidden, setHidden] = React.useState(() => pillFlag.get());
+      React.useEffect(() => pillFlag.subscribe(setHidden), []);
       const drag = React.useRef(null);
 
       if (hidden) return null;
@@ -3526,11 +3573,9 @@ window.__ModuleLoader__.load({
       h("span", { className: dir(F(q).changePct) }, q ? pct(F(q).changePct) : "—"),
       h("span", { className: "skd-pill-n" }, `↑${up} ↓${dn}`),
       h("button", {
-        className: "skd-pill-x", "data-role": "close", type: "button", title: T("remove"),
-        onClick: () => {
-          setHidden(true);
-          try { window.localStorage.setItem("stock-desk.pill.hidden", "1"); } catch { /* 同上 */ }
-        },
+        // 它只是隐藏，不是删掉：标题写「移除」会让人以为这东西没了
+        className: "skd-pill-x", "data-role": "close", type: "button", title: T("hidePill"),
+        onClick: () => pillFlag.set(true),
       }, "\u00d7"));
     }
     //#endregion
@@ -3676,6 +3721,9 @@ window.__ModuleLoader__.load({
         // 配置页现在有两个入口，独立那个要能单独渲染出来才算数 ——
         // 它自己取 /state，跟整页那条路径不共享状态，整页绿了不代表它也绿。
         SettingsTab,
+        // 配置页里那个外壳（Settings）单独导出：药丸显隐开关在里面，
+        // 而 SettingsTab 自己要先取一遍 /state 才画得出来，定位一个勾选框不必绕那么远。
+        Settings, pillFlag,
         // 图片识别面板：三个分支（能识别 / 本机没有 OCR / 认出候选）都得能渲染出来。
         // 「没装语言包时按钮点了没反应」这种故障，只靠肉眼点一次是碰不到的。
         ImageImport, fill,

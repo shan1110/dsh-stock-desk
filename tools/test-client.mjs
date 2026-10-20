@@ -49,6 +49,14 @@ const React = {
 
 const styleTags = [];
 globalThis.window = { __ModuleLoader__: { load: (entry) => { globalThis.__entry = entry; } } };
+// localStorage：药丸的显隐存在这里。没有它就没法验「关掉之后还打得开」，
+// 而那正是用户叉掉药丸后卡住的地方。
+const memStore = new Map();
+globalThis.window.localStorage = {
+  getItem: (k) => (memStore.has(k) ? memStore.get(k) : null),
+  setItem: (k, v) => { memStore.set(k, String(v)); },
+  removeItem: (k) => { memStore.delete(k); },
+};
 globalThis.document = {
   querySelector: () => null,
   createElement: () => ({ dataset: {}, textContent: '', remove() {} }),
@@ -243,7 +251,7 @@ const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, Quote
   pnlOf, sortQuotes, PAGE_SIZE, dir,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
-  desk, DeskPage, DeskButton, Pill, SettingsTab } = mod.__test ?? {};
+  desk, DeskPage, DeskButton, Pill, SettingsTab, Settings, pillFlag } = mod.__test ?? {};
 check('导出了自检入口 __test',
   Boolean(QuoteDetail && QuoteTable && IndexStrip && fieldText && positionRows
     && BreadthBar && LimitGrid && BoardGrid && BoardDrill && desk && DeskPage && DeskButton && Pill));
@@ -1285,7 +1293,7 @@ check('药丸显示涨跌幅', pillText.some((t) => t.includes('0.49')), '');
 // 自选两只：茅台 +1.23%、宁德 -0.85% —— 一涨一跌，家数应当是 ↑1 ↓1
 check('药丸显示自选涨跌家数 ↑1 ↓1',
   pillText.some((t) => /↑\s*1/.test(t) && /↓\s*1/.test(t)), pillText.join(' / '));
-check('药丸没把自己隐藏掉（没有 localStorage 桩件时也不该消失）', pillText.length > 0);
+check('药丸默认是显示的（没有被隐藏标记吃掉）', pillText.length > 0);
 
 const btnText = strings(DeskButton?.({ active: false }) ?? null);
 check('侧边栏按钮能渲染且带标题', btnText.includes('行情台'), btnText.join(' / '));
@@ -2132,6 +2140,40 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   check('方向判断本身：负数给 skd-down、正数给 skd-up、0 与空值给 skd-flat',
     dir(-0.06) === 'skd-down' && dir(0.41) === 'skd-up' && dir(0) === 'skd-flat' && dir(null) === 'skd-flat',
     [dir(-0.06), dir(0.41), dir(0), dir(null)].join(','));
+}
+
+// 药丸的 × 只是「隐藏」，不是「删掉」。改前它只往 localStorage 写一个 1，
+// 代码里没有任何地方会清掉这个 1 —— 叉掉之后药丸再也回不来了（用户实测卡在这里）。
+{
+  const boxes = collectEls(Settings?.({ config: { ui: {}, pill: {} }, info: { indexCatalog: [] },
+    save: async () => {}, onMigrate: () => {} }) ?? null)
+    .filter((n) => n.props?.['data-pill'] === '1');
+  check('设置页有一个「显示药丸」勾选框', boxes.length === 1, String(boxes.length));
+
+  memStore.delete('stock-desk.pill.hidden');
+  pillFlag.set(false);
+  check('药丸可见时，勾选框是勾上的',
+    collectEls(Settings?.({ config: { ui: {}, pill: {} }, info: { indexCatalog: [] },
+      save: async () => {}, onMigrate: () => {} }) ?? null)
+      .find((n) => n.props?.['data-pill'] === '1')?.props?.checked === true, '');
+
+  // 勾掉 → 写进 localStorage；药丸那边订阅同一个 store，当场消失
+  pillFlag.set(true);
+  check('关掉药丸会写进 localStorage', String(memStore.get('stock-desk.pill.hidden')) === '1',
+    String(memStore.get('stock-desk.pill.hidden')));
+  check('药丸关掉后确实渲染成空', Pill?.() === null);
+  check('勾选框跟着变成没勾',
+    collectEls(Settings?.({ config: { ui: {}, pill: {} }, info: { indexCatalog: [] },
+      save: async () => {}, onMigrate: () => {} }) ?? null)
+      .find((n) => n.props?.['data-pill'] === '1')?.props?.checked === false, '');
+
+  // 再打开 → 标记被删掉，药丸回来
+  pillFlag.set(false);
+  check('重新打开会把 localStorage 里的标记删掉，不是写 0',
+    memStore.has('stock-desk.pill.hidden') === false, String(memStore.get('stock-desk.pill.hidden')));
+  check('打开后药丸又能渲染出来', (strings(Pill?.() ?? null)).length > 0);
+  check('设置页说明了关掉后回哪里打开', /重新打开/.test(strings(Settings?.({ config: { ui: {}, pill: {} },
+    info: { indexCatalog: [] }, save: async () => {}, onMigrate: () => {} }) ?? null).join('|')), '');
 }
 
 // ---- 结论 -----------------------------------------------------------------
