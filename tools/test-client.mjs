@@ -1813,10 +1813,39 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   check('{n} 占位能被替换', fill?.('加入自选（{n}）', 3) === '加入自选（3）', fill?.('加入自选（{n}）', 3));
   check('占位缺失时不抛错', fill?.(undefined, 1) === '', JSON.stringify(fill?.(undefined, 1)));
 
+  // ---- 持有标记的合并：只加 held，不许碰用户已经填好的成本价与份额 ----
+  {
+    const { withHeld } = mod.__test ?? {};
+    check('导出了持有标记合并', typeof withHeld === 'function');
+    check('空 positions 也能标', JSON.stringify(withHeld?.({}, ['sh600519'])) === '{"sh600519":{"held":true}}',
+      JSON.stringify(withHeld?.({}, ['sh600519'])));
+    check('已有的成本价与份额原样保留',
+      JSON.stringify(withHeld?.({ sh600519: { cost: 1320, shares: 100 } }, ['sh600519']))
+        === '{"sh600519":{"cost":1320,"shares":100,"held":true}}',
+      JSON.stringify(withHeld?.({ sh600519: { cost: 1320, shares: 100 } }, ['sh600519'])));
+    check('没点名的代码一个不动',
+      JSON.stringify(withHeld?.({ sz000001: { held: true } }, ['sh600519']))
+        === '{"sz000001":{"held":true},"sh600519":{"held":true}}',
+      JSON.stringify(withHeld?.({ sz000001: { held: true } }, ['sh600519'])));
+    check('重复标同一只不会长出第二份', Object.keys(withHeld?.({ sh600519: { held: true } }, ['sh600519']) ?? {}).length === 1);
+    check('空代码列表等于没改', JSON.stringify(withHeld?.({ sh600519: { held: true } }, [])) === '{"sh600519":{"held":true}}');
+    check('原来的 positions 不被就地改写', (() => {
+      const src = { sh600519: { held: true } };
+      withHeld?.(src, ['sz000001']);
+      return Object.keys(src).length === 1;
+    })(), '');
+  }
+
   // 按钮与面板都必须有样式，否则「贴完图之后面板看不见」会以布局问题的形式出现
   check('图片面板有样式（.skd-imgbox）', /\.skd-imgbox\{/.test(clientSrc), '');
   check('拖拽区有虚线边框（.skd-imgdrop）', /\.skd-imgdrop\{[^}]*dashed/.test(clientSrc), '');
   check('选中的候选行有可点区域（.skd-imgrow）', /\.skd-imgrow\{/.test(clientSrc), '');
+  // 一行两个勾选框，外层不能是 label：label 会把点击转给第一个 input，
+  // 点「持有」会连带把「要不要加」也翻掉
+  check('候选行本身不再整行可点（不然点持有会连带改动加入）',
+    !/\.skd-imgrow\{[^}]*cursor:pointer/.test(clientSrc), '');
+  check('「加入」那半区自己可点（.skd-imgpick）', /\.skd-imgpick\{[^}]*cursor:pointer/.test(clientSrc), '');
+  check('「持有」勾选框有自己的一列（.skd-imgheld）', /\.skd-imgheld\{/.test(clientSrc), '');
   check('「图片」按钮有按下态（.skd-btn[data-on="1"]）', /\.skd-btn\[data-on="1"\]\{/.test(clientSrc), '');
   // 卡头那排必须不换行：图片按钮是第三个定宽小件，多一个就可能把这一行挤成两行
   check('卡头工具条仍然锁定不换行', /\.skd-card-h>\.skd-tools\{[^}]*nowrap/.test(clientSrc), '');
@@ -1844,7 +1873,10 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
     {
       const picked = [];
       const m = await globalThis.__mountLive(entry, 'ImageImport', {
-        onAdd: async (codes) => { picked.push(codes); return codes.length; },
+        onAdd: async (codes, heldCodes) => {
+          picked.push({ codes, held: heldCodes });
+          return { added: codes.length, held: heldCodes.length };
+        },
         onClose: () => {},
         initial: {
           lang: 'zh-Hans-CN',
@@ -1863,24 +1895,51 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
       check('没对上的行数如实报出来', t.includes('1'), t);
 
       const boxes = m.all((n) => n.props?.type === 'checkbox');
-      check('每只候选一个勾选框', boxes.length === 2, String(boxes.length));
+      const pick_of = () => boxes_all().filter((b) => b.props?.['data-pick'] === '1');
+      const held_of = () => boxes_all().filter((b) => b.props?.['data-held'] === '1');
+      // 每次重渲染元素都是新的，不能拿着上一轮的引用断言
+      const boxes_all = () => m.all((n) => n.props?.type === 'checkbox');
+
+      check('每只候选一个「加入」勾选框', pick_of().length === 2, String(pick_of().length));
+      // 一行两个勾选框：左边「要不要加」，右边「是否持有」。
+      // 持仓截图里几乎全是已持有的，缺这一列就得加进自选后再回表格逐行勾一遍
+      check('每只候选还有一个「持有」勾选框', held_of().length === 2, String(held_of().length));
+      check('持有勾选框带「持有」二字，不是个秃勾选框', t.includes('持有'), t);
+      check('持有默认都不勾', held_of().every((b) => b.props.checked === false), '');
+
+      // 勾一只持有：加入按钮上的数字不该变，两件事正交
+      held_of()[0]?.props?.onChange({ target: { checked: true } });
+      await m.flush();
+      check('勾持有不影响「加入」的数字', texts(m.tree).join('|').includes('加入自选（2）'),
+        texts(m.tree).join('|'));
+      check('持有能勾上', held_of()[0]?.props?.checked === true, '');
 
       // 取消「贵州茅台」那一只
-      const first = boxes.find((b) => b.props?.checked === true);
+      const first = pick_of().find((b) => b.props?.checked === true);
       if (first) {
         first.props.onChange({ target: { checked: false } });
         await m.flush();
       }
       const t2 = texts(m.tree).join('|');
       check('取消勾选后按钮数字跟着变', t2.includes('加入自选（1）'), t2);
+      // 不选中却留着持有标记，等于把一只没加进来的股票写进 positions
+      check('取消勾选会连持有标记一起撤掉', held_of()[0]?.props?.checked === false, '');
+      pick_of()[0]?.props?.onChange({ target: { checked: true } });
+      await m.flush();
+      check('重新勾回「加入」不会偷偷把持有恢复', held_of()[0]?.props?.checked === false, '');
 
-      // 点「加入自选」：只把勾着的那只交给上层
+      // 只给平安银行勾持有，然后提交
+      held_of()[1]?.props?.onChange({ target: { checked: true } });
+      await m.flush();
       const addBtn = m.all((n) => n.props?.type === 'button')
         .find((n) => texts(n).join('').includes('加入自选（'));
       if (addBtn) await m.click(addBtn);
       check('点了加入按钮', Boolean(addBtn));
-      check('只加入勾选的候选', JSON.stringify(picked[0] ?? null) === JSON.stringify(['sz000001']),
-        JSON.stringify(picked[0] ?? null));
+      const sent = picked[0] ?? {};
+      check('只加入勾选的候选', JSON.stringify((sent.codes ?? []).slice().sort()) === JSON.stringify(['sh600519', 'sz000001']),
+        JSON.stringify(sent.codes));
+      check('勾了持有的那只一并交给上层', JSON.stringify(sent.held ?? null) === JSON.stringify(['sz000001']),
+        JSON.stringify(sent.held));
     }
 
     // 分支三：一张图里什么都没认出来。不能留白，得说清「没认出」并给出下一步

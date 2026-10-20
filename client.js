@@ -104,7 +104,7 @@ window.__ModuleLoader__.load({
       fundTag: "基金",
       searchHint: "可搜股票代码/名称，也可搜场内基金（ETF/LOF），例如 510300、创业板ETF。",
       fromImage: "图片",
-      hintFromImage: "从截图里认股票：把券商的持仓/自选截图贴进来，自动认出代码与名称，勾选后加入自选，不用手打。",
+      hintFromImage: "从截图里认股票：把券商的持仓/自选截图贴进来，自动认出代码与名称，勾选后加入自选，不用手打。持仓截图可以顺手把右边「持有」一起勾上。",
       imgDrop: "粘贴截图（Ctrl+V）、把图片拖到这里，或点这里选文件",
       imgBusy: "正在识别…",
       imgOff: "本机没有中文 OCR：识别用的是 Windows 自带 OCR，需要在系统设置里装中文（简体）语言包。",
@@ -114,6 +114,8 @@ window.__ModuleLoader__.load({
       imgAdd: "加入自选（{n}）",
       imgAdding: "加入中…",
       imgAdded: "已加入 {n} 只",
+      imgAddedHeld: "，其中 {n} 只标为持有",
+      imgAllPresent: "这些已在自选里，只补了持有标记",
       imgClose: "收起",
       imgHintCode: "按代码命中",
       imgHintName: "按名称命中",
@@ -313,7 +315,7 @@ window.__ModuleLoader__.load({
       fundTag: "Fund",
       searchHint: "Search stocks by code or name, or on-exchange funds (ETF/LOF) such as 510300.",
       fromImage: "Image",
-      hintFromImage: "Read a broker screenshot: paste it in, get the codes and names back, tick the ones you want and add them without typing.",
+      hintFromImage: "Read a broker screenshot: paste it in, get the codes and names back, tick the ones you want and add them without typing. For a holdings screenshot, tick 持有 on the right as well.",
       imgDrop: "Paste a screenshot (Ctrl+V), drop it here, or click to pick a file",
       imgBusy: "Reading the image…",
       imgOff: "No Chinese OCR on this machine: it uses the built-in Windows OCR, which needs the Chinese (Simplified) language pack.",
@@ -323,6 +325,8 @@ window.__ModuleLoader__.load({
       imgAdd: "Add to watchlist ({n})",
       imgAdding: "Adding…",
       imgAdded: "Added {n}",
+      imgAddedHeld: ", {n} marked as held",
+      imgAllPresent: "Already in the watchlist; only the held mark was added",
       imgClose: "Hide",
       imgHintCode: "matched by code",
       imgHintName: "matched by name",
@@ -675,8 +679,12 @@ window.__ModuleLoader__.load({
   cursor:pointer;text-align:center}
 .skd-imgdrop:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .skd-imglist{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow-y:auto}
-.skd-imgrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.skd-imgrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;font-size:12.5px}
 .skd-imgrow:hover{background:var(--dsw-alias-bg-layer-2)}
+.skd-imgpick{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;cursor:pointer}
+.skd-imgheld{display:flex;align-items:center;gap:4px;flex:0 0 auto;font-size:11.5px;
+  color:var(--skd-dim);cursor:pointer}
+.skd-imgheld input{cursor:pointer}
 .skd-imgname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .skd-imgfoot{display:flex;align-items:center;gap:10px}
 .skd-imgfoot>.skd-meta{flex:1 1 auto;min-width:0}
@@ -1648,6 +1656,29 @@ window.__ModuleLoader__.load({
       }
       if (Object.keys(one).length === 0) delete src[code]; else src[code] = one;
       return kind === "pos" ? { ...draft, positions: src } : { ...draft, alerts: src };
+    }
+
+    /**
+     * 把「持有」标记一次性并进 positions。
+     *
+     * 为什么单独写一个而不是在提交时逐只调 applyDraftEdit：applyDraftEdit 收的是
+     * 「某一格的新值」，而这里只可能知道「是否持有」这一件事 —— 走它的话，
+     * 图片面板会顺带把用户已经填好的成本价与份额当成待改字段一起覆盖掉。
+     *
+     * 只加不删：没被勾的代码保持原样，`held` 已有的仍然保留。
+     * 与 lib/store.js 的约定一致 —— held 只存 true，不存 false。
+     *
+     * @param {object} positions 现有的 positions
+     * @param {string[]} codes 要标记为持有的代码
+     * @returns {object} 新的 positions
+     */
+    function withHeld(positions, codes) {
+      const src = { ...(positions ?? {}) };
+      for (const code of codes ?? []) {
+        if (!code) continue;
+        src[code] = { ...(src[code] ?? {}), held: true };
+      }
+      return src;
     }
 
     /**
@@ -2670,7 +2701,10 @@ window.__ModuleLoader__.load({
       // initial 只给自检用：注入一份预置结果，免得为了断言候选列表去伪造 FileReader 与 fetch
       const [res, setRes] = React.useState(initial ?? null);
       const [pick, setPick] = React.useState(() => new Set((initial?.candidates ?? []).map((x) => x.code)));
-      const [done, setDone] = React.useState(0);
+      // 「持有」是与「要不要加」正交的一件事：截图里的持仓截图基本全是已持有的，
+      // 加进自选后还要回表格逐行勾一遍，等于把省下的手工又还回去
+      const [held, setHeld] = React.useState(() => new Set());
+      const [done, setDone] = React.useState(null);
       const fileRef = React.useRef(null);
 
       // 先问一句本机能不能做中文 OCR：不同机器差的是系统语言包，
@@ -2690,7 +2724,7 @@ window.__ModuleLoader__.load({
           setErr(`不是图片：${file.type || file.name || "未知类型"}`);
           return;
         }
-        setErr(""); setRes(null); setDone(0); setPick(new Set()); setBusy(true);
+        setErr(""); setRes(null); setDone(null); setPick(new Set()); setHeld(new Set()); setBusy(true);
         if (typeof FileReader === "undefined") {
           setBusy(false);
           setErr("这个环境读不了本地文件");
@@ -2738,7 +2772,23 @@ window.__ModuleLoader__.load({
       const unmatched = res?.unmatched ?? [];
       const usable = probe?.ok !== false;
 
-      const toggle = (code, on) => setPick((s) => {
+      const toggle = (code, on) => {
+        setPick((s) => {
+          const next = new Set(s);
+          if (on) next.add(code); else next.delete(code);
+          return next;
+        });
+        // 取消勾选要连持有标记一起撤掉：留着的话，一只没被选中的股票
+        // 也会被写进 positions 标成持有，而它根本不在这次要加的名单里
+        if (!on) setHeld((s) => {
+          if (!s.has(code)) return s;
+          const next = new Set(s);
+          next.delete(code);
+          return next;
+        });
+      };
+
+      const toggleHeld = (code, on) => setHeld((s) => {
         const next = new Set(s);
         if (on) next.add(code); else next.delete(code);
         return next;
@@ -2748,16 +2798,34 @@ window.__ModuleLoader__.load({
         if (pick.size === 0 || adding) return;
         setAdding(true); setErr("");
         try {
-          const n = await onAdd([...pick]);
-          setDone(n ?? pick.size);
+          // 持有标记只报勾选中的那些：改了主意取消勾选的，不该在后台被标成持有
+          const r = await onAdd([...pick], [...held].filter((c) => pick.has(c)));
+          setDone({
+            added: Number(r?.added) || 0,
+            held: Number(r?.held) || 0,
+          });
           setRes(null);
           setPick(new Set());
+          setHeld(new Set());
         } catch (e) {
           setErr(String(e?.message ?? e));
         } finally {
           setAdding(false);
         }
       };
+
+      /** 加完之后的说明。只报实际发生的事，不为凑一句好看的话去猜 */
+      const doneText = () => {
+        if (!done) return "";
+        if (done.added > 0) {
+          return fill(T("imgAdded"), done.added)
+            + (done.held > 0 ? fill(T("imgAddedHeld"), done.held) : "");
+        }
+        // 一只都没新增说明这些本来就在自选里，此时唯一可能的改动就是持有标记
+        return done.held > 0 ? T("imgAllPresent") : "";
+      };
+
+      const doneMsg = doneText();
 
       return h("div", { className: "skd-imgbox" },
         h("div", { className: "skd-imghead" },
@@ -2780,22 +2848,31 @@ window.__ModuleLoader__.load({
           onChange: (e) => { readImage(e.target.files?.[0]); e.target.value = ""; },
         }),
         err ? h(Msg, { text: err, err: true }) : null,
-        done > 0 ? h(Msg, { text: fill(T("imgAdded"), done) }) : null,
+        doneMsg ? h(Msg, { text: doneMsg }) : null,
         res ? (cands.length === 0
           ? h(Msg, { text: T("imgNone"), err: true, hint: (res.lines ?? []).join(" / ") })
           : h("div", { className: "skd-imglist" },
-            ...cands.map((c) => h("label", { key: c.code, className: "skd-imgrow" },
-              h("input", {
-                type: "checkbox", checked: pick.has(c.code),
-                onChange: (e) => toggle(c.code, e.target.checked),
-              }),
-              h("span", { className: "skd-imgname" }, c.name || c.code),
-              h("span", { className: "skd-code" }, c.code),
-              c.kind === "fund" ? h("span", { className: "skd-tag" }, T("fundTag")) : null,
-              h("span", {
-                className: "skd-tag",
-                title: c.matchedBy === "code" ? T("imgHintCode") : T("imgHintName"),
-              }, c.matchedBy === "code" ? "代码" : "名称"))))) : null,
+            // 一行两个勾选框，不能用外层 label 包：label 会把点击转给第一个 input，
+            // 点「持有」会连带把「要不要加」也翻掉
+            ...cands.map((c) => h("div", { key: c.code, className: "skd-imgrow" },
+              h("label", { className: "skd-imgpick" },
+                h("input", {
+                  type: "checkbox", "data-pick": "1", checked: pick.has(c.code),
+                  onChange: (e) => toggle(c.code, e.target.checked),
+                }),
+                h("span", { className: "skd-imgname" }, c.name || c.code),
+                h("span", { className: "skd-code" }, c.code),
+                c.kind === "fund" ? h("span", { className: "skd-tag" }, T("fundTag")) : null,
+                h("span", {
+                  className: "skd-tag",
+                  title: c.matchedBy === "code" ? T("imgHintCode") : T("imgHintName"),
+                }, c.matchedBy === "code" ? "代码" : "名称")),
+              h("label", { className: "skd-imgheld", title: T("hintHeld") },
+                h("input", {
+                  type: "checkbox", "data-held": "1", checked: held.has(c.code),
+                  onChange: (e) => toggleHeld(c.code, e.target.checked),
+                }),
+                h("span", null, T("held"))))))) : null,
         cands.length > 0
           ? h("div", { className: "skd-imgfoot" },
             h("span", { className: "skd-meta" },
@@ -2940,16 +3017,22 @@ window.__ModuleLoader__.load({
        * 必须一次 POST 全部写进去：patchConfig 走的是整份配置覆盖，
        * 逐只保存会互相把对方冲掉，最后只剩最后一只。
        *
-       * @returns {Promise<number>} 实际新增的只数（已在自选里的不重复加）
+       * @param {string[]} codes 要加入自选的代码
+       * @param {string[]} [heldCodes] 其中要同时标成「持有」的代码
+       * @returns {Promise<{added: number, held: number}>} 新增只数与新增的持有标记数
        */
-      const addCodes = async (codes) => {
-        if (!watchGroup) return 0;
+      const addCodes = async (codes, heldCodes = []) => {
+        if (!watchGroup) return { added: 0, held: 0 };
         const have = new Set(watchGroup.items ?? []);
         const add = (codes ?? []).filter((c) => c && !have.has(c));
-        if (add.length === 0) return 0;
-        const next = withGroup((items) => [...items, ...add]);
-        if (next) await save(next);
-        return add.length;
+        const markHeld = (heldCodes ?? []).filter(Boolean);
+        if (add.length === 0 && markHeld.length === 0) return { added: 0, held: 0 };
+        let next = withGroup((items) => [...items, ...add]);
+        if (!next) return { added: 0, held: 0 };
+        // 持有标记与自选名单是两件事，必须并进同一份配置一起提交
+        if (markHeld.length > 0) next = { ...next, positions: withHeld(next.positions, markHeld) };
+        await save(next);
+        return { added: add.length, held: markHeld.length };
       };
       const removeCode = async (code) => {
         const next = withGroup((items) => items.filter((x) => x !== code));
@@ -3426,6 +3509,9 @@ window.__ModuleLoader__.load({
         // 图片识别面板：三个分支（能识别 / 本机没有 OCR / 认出候选）都得能渲染出来。
         // 「没装语言包时按钮点了没反应」这种故障，只靠肉眼点一次是碰不到的。
         ImageImport, fill,
+        // 持有标记的合并：它只加 held、不动成本价与份额，
+        // 走 applyDraftEdit 会把用户填好的数值当成待改字段一起覆盖 —— 这两条必须分开验
+        withHeld,
       },
     };
   },
