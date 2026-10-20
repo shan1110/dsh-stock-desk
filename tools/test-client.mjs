@@ -2548,9 +2548,12 @@ if (mountPill && PillView) {
   console.log('  SKIP  药丸操作栏的用例（没有 mountLive 运行时）');
 }
 
-// ---- 「能不能加仓」块：默认折叠、展开才有表、结论跟着 plan 走 -------------------
-// 这一块是唯一同时读四个条件、又只在界面上出现的地方，所以「默认是否展开」
-// 和「没通过时显示哪几个字」都要机器判定 —— 肉眼看两遍容易漏。
+// ---- 「能不能加仓」块：三层信息，逐层断言 -------------------------------------
+// 第一版把两张表直接摊给用户，反馈是「这我看不懂」。现在分三层：
+//   1 结论 + 一句理由（默认）
+//   2 四条门槛（展开）
+//   3 原始表（再展开）
+// 这三层都要能被机器判定，否则「默认太啰嗦」和「展开后还是看不懂」都会反复出现。
 if (globalThis.__mountLive) {
   const ANA = {
     plan: {
@@ -2560,34 +2563,56 @@ if (globalThis.__mountLive) {
       target: null,
       addWhy: ['edge'],
       four: { edge: false, pos: true, trigger: true, ratio: true },
+      detail: {
+        pos: { id: 'S.lo20', price: 7.95, distAtr: -1.4, distPct: -4.33, note: 'S.lo20 7.95' },
+        trigger: { ok: true, note: '今天的触发条件成立' },
+        ratio: { value: 2.53, need: 2, note: '达到门槛' },
+      },
     },
     primary: 'C2',
     primaryPeriod: 'day',
+    edgeRow: { id: 'C2.1d', cond: 'C2', horizon: 1, n: 83, up: 39, upPct: 39, ci: [29, 49], base: 47, judge: 'none' },
     rows: [
-      { id: 'C1.1d', cond: 'C1', upPct: 64, n: 42, ci: [49, 77], base: 47, judge: 'pos' },
-      { id: 'C2.1d', cond: 'C2', upPct: 39, n: 83, ci: [29, 49], base: 47, judge: 'none' },
-      { id: 'C3.10d', cond: 'C3', upPct: 31, n: 29, ci: [17, 49], base: 43, judge: 'neg' },
+      { id: 'C1.1d', cond: 'C1', horizon: 1, period: 'day', era: null, upPct: 64, n: 42, ci: [49, 77], base: 47, judge: 'pos' },
+      { id: 'C2.1d', cond: 'C2', horizon: 1, period: 'day', era: null, upPct: 39, n: 83, ci: [29, 49], base: 47, judge: 'none' },
+      { id: 'C3.10d', cond: 'C3', horizon: 10, period: 'day', era: null, upPct: 31, n: 29, ci: [17, 49], base: 43, judge: 'neg' },
     ],
     levels: { items: [{ id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 }] },
   };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, data: ANA }) });
+  const txt = (m) => JSON.stringify(m.tree);
+  const btnByText = (m, label) => m.all((n) => n.type === 'button'
+    && JSON.stringify(n.children ?? n.props?.children ?? '').includes(label))[0];
   try {
-    const folded = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: false });
-    const foldedText = JSON.stringify(folded.tree);
-    check('能不能加仓：折叠时只给结论，不出表', !foldedText.includes('历史形态频率'), '');
-    check('能不能加仓：四条都画成 chip', ['形态边缘', '位置', '触发', '盈亏比'].every((s) => foldedText.includes(s)));
-    check('能不能加仓：没通过时说清卡在哪一条', /卡在.*形态边缘/.test(foldedText));
-    check('能不能加仓：没有加仓位时明说，而不是留空', foldedText.includes('当前没有符合条件的加仓位'));
+    const m1 = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: false });
+    const t1 = txt(m1);
+    check('能不能加仓：默认给结论（现在不该加）', t1.includes('现在不该加'));
+    check('能不能加仓：默认把「今天命中什么」翻成人话', t1.includes('缩量回踩') && t1.includes('贴着 20 日均线'));
+    check('能不能加仓：默认给一句「为什么」，带样本数与对比',
+      t1.includes('出现过') && t1.includes('83') && t1.includes('47%'));
+    check('能不能加仓：默认不出表、也不出四条门槛', !t1.includes('历史形态频率') && !t1.includes('四条门槛'));
 
-    const open = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: true });
-    const openText = JSON.stringify(open.tree);
-    check('能不能加仓：展开后有历史频率表', openText.includes('历史形态频率'));
-    check('能不能加仓：表里把有方向的格子都列出来',
-      openText.includes('C1.1d') && openText.includes('C2.1d') && openText.includes('C3.10d'));
-    check('能不能加仓：表里带区间与样本量', openText.includes('49~77%') && openText.includes('83'));
-    check('能不能加仓：展开后有位置表与编号', openText.includes('S.lo20'));
-    check('能不能加仓：展开时写明历史频率不等于未来概率', openText.includes('历史频率不等于未来概率'));
+    const m2 = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: true });
+    const t2 = txt(m2);
+    check('能不能加仓：展开后有四条门槛', t2.includes('四条门槛') && t2.includes('形态有优势') && t2.includes('价位够低'));
+    check('能不能加仓：门槛逐条给 ✓/✗', (t2.match(/✓|✗/g) ?? []).length >= 4);
+    check('能不能加仓：门槛给的是人话而不是代号', !t2.includes('S.lo20') || t2.includes('比现价低'));
+    check('能不能加仓：展开时仍不出原始表', !t2.includes('历史形态频率'));
+
+    const m3 = m2;
+    const rawBtn = btnByText(m3, '看全部数据');
+    check('能不能加仓：有「看全部数据」这一层入口', Boolean(rawBtn));
+    if (rawBtn) {
+      await m3.click(rawBtn);
+      const t3 = txt(m3);
+      check('能不能加仓：再展开才出历史形态频率表', t3.includes('历史形态频率'));
+      check('能不能加仓：表头用「形态」而不是 id', t3.includes('形态') && t3.includes('结论'));
+      check('能不能加仓：表里带区间与样本量', t3.includes('49~77%') && t3.includes('83'));
+      check('能不能加仓：位置表给「支撑 / 压力」而不是「位置 / 止盈」',
+        t3.includes('支撑') && !t3.includes('止盈'));
+      check('能不能加仓：原始表最后才给免责句', t3.includes('历史频率不等于未来概率'));
+    }
   } finally {
     globalThis.fetch = realFetch;
   }

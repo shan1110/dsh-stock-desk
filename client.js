@@ -154,16 +154,60 @@ window.__ModuleLoader__.load({
       anaLoading: "正在算…",
       anaFail: "算不出来",
       anaShort: "历史太短，算不出形态频率（至少要 30 根日线）",
-      anaEdge: "形态边缘",
-      anaPos: "位置",
-      anaTrigger: "触发",
-      anaRatio: "盈亏比",
-      anaYes: "符合",
-      anaNo: "不符合",
+      anaYesAdd: "现在可以加",
+      anaNoAdd: "现在不该加",
+      anaSupport: "支撑",
+      anaResistance: "压力",
+      anaFlat: "持平",
+      anaGates: "四条门槛",
+      anaWhere: "位置",
+      anaColWhat: "形态",
+      anaHold: "持有",
+      anaColVerdict: "结论",
+      anaHideRaw: "收起数据",
+      anaShowRaw: "看全部数据",
+      gateEdge: "形态有优势",
+      gatePos: "价位够低",
+      gateTrigger: "有触发信号",
+      gateRatio: "盈亏比够 2:1",
+      judgePos: "有优势",
+      judgeNeg: "是个坑",
+      judgeNone: "分不开",
+      judgeTiny: "样本不足",
+      eraAll: "·全历史",
+      eraRecent: "·近 3 年",
+      unitD: "日",
+      unitW: "周",
+      afterD: "个交易日后",
+      afterW: "周后",
+      ruleC1: "收盘站上 20 日均线，成交量放大到前 5 天的 1.5 倍以上，当天涨 2% 以上。",
+      ruleC2: "收盘贴着 20 日均线（上下 2% 以内），成交量不到前 5 天均量的 0.8 倍。",
+      ruleC3: "前一天还在 20 日均线上方，当天跌破。",
+      ruleC4: "20 个持有期里跌了 15% 以上（周线口径是 20%）。",
+      reasonNoHit: "今天没有任何形态命中，第一条门槛（形态有优势）无从谈起，所以不给加仓位。",
+      reasonNoSample: "命中的形态在这只票上的历史样本太少，算不出方向。",
+      reasonTinyA: "这种样子在这只票上只出现过",
+      reasonTinyB: "次，太少，说不准——样本不足时不给方向，也不给加仓位。",
+      reasonSeenA: "这种样子在这只票上出现过",
+      reasonSeenB: "次，其中",
+      reasonSeenC: "次在",
+      reasonSeenD: "是涨的（",
+      reasonCmpNone: "），而随便哪天买是",
+      reasonCmpNone2: "两者一模一样，这个形态没有优势",
+      reasonCmpBase: "），而随便哪天买是",
+      reasonCmpPos: "这个形态明显比随便买好，算一个优势",
+      reasonCmpNeg: "这个形态明显比随便买差，别在它身上加仓",
+      gEdgeNone: "和随便买没有区别",
+      gEdgePos: "明显好于随便买",
+      gEdgeNeg: "明显差于随便买",
+      gNoSample: "没有命中的形态",
+      gTiny: "只有几次样本，说不准（n=",
+      gPosOk: "比现价低，且距离超过 1 个 ATR",
+      gPosNo: "还没有跌到够远的支撑位",
+      gTrigOk: "今天成立",
       anaHit: "今天命中",
       anaNoHit: "今天没有命中任何形态",
       anaStuck: "卡在",
-      anaPass: "四条都成立",
       anaAddZone: "加仓位",
       anaStop: "止损",
       anaTarget: "止盈",
@@ -176,10 +220,6 @@ window.__ModuleLoader__.load({
       anaCI: "区间",
       anaNTxt: "n",
       anaBaseShort: "基准",
-      anaPos_: "正边缘",
-      anaNeg: "负边缘",
-      anaNeutral: "无信号",
-      anaTiny: "样本不足",
       anaWhy: "历史频率不等于未来概率；区间跨过基准的格子等于没有信号。",
       hintAna: "四条同时成立才给加仓位：① 这个形态在这只票历史上显著好于基准 ② 支撑离现价够远（≥1 个 ATR）③ 有触发而不是挂死单 ④ 盈亏比 ≥ 2:1。任一条不成立就不给位置 —— 位置对、形态错是最常见的亏钱路径。",
       c1Name: "放量突破",
@@ -427,16 +467,60 @@ window.__ModuleLoader__.load({
       anaLoading: "Calculating…",
       anaFail: "Cannot compute",
       anaShort: "History too short for pattern frequencies (needs 30 daily bars)",
-      anaEdge: "Edge",
-      anaPos: "Level",
-      anaTrigger: "Trigger",
-      anaRatio: "R:R",
-      anaYes: "yes",
-      anaNo: "no",
+      anaYesAdd: "You can add now",
+      anaNoAdd: "Do not add now",
+      anaSupport: "support",
+      anaResistance: "resistance",
+      anaFlat: "at price",
+      anaGates: "Four gates",
+      anaWhere: "Levels",
+      anaColWhat: "Pattern",
+      anaHold: "hold",
+      anaColVerdict: "Verdict",
+      anaHideRaw: "Hide data",
+      anaShowRaw: "Show all data",
+      gateEdge: "Edge over base rate",
+      gatePos: "Level far enough",
+      gateTrigger: "Trigger present",
+      gateRatio: "R:R >= 2:1",
+      judgePos: "edge",
+      judgeNeg: "trap",
+      judgeNone: "no difference",
+      judgeTiny: "too few",
+      eraAll: " · all history",
+      eraRecent: " · recent 3y",
+      unitD: "d",
+      unitW: "w",
+      afterD: " trading days later",
+      afterW: " weeks later",
+      ruleC1: "Closes above MA20, volume above 1.5x the prior 5-day average, and up more than 2%.",
+      ruleC2: "Closes within 2% of MA20 with volume below 0.8x the prior 5-day average.",
+      ruleC3: "Closed above MA20 the day before and closes below it today.",
+      ruleC4: "Down more than 15% over 20 bars (20% on weekly).",
+      reasonNoHit: "No pattern hit today, so the first gate (edge over base rate) cannot be assessed. No add zone.",
+      reasonNoSample: "Too few historical samples for the pattern that hit today.",
+      reasonTinyA: "This pattern appeared only",
+      reasonTinyB: "times here — too few to call a direction, so no add zone either.",
+      reasonSeenA: "This pattern appeared",
+      reasonSeenB: "times here;",
+      reasonSeenC: "of them were up",
+      reasonSeenD: " later (",
+      reasonCmpNone: "), versus",
+      reasonCmpNone2: "for any random day — no difference, so no edge",
+      reasonCmpBase: "), versus",
+      reasonCmpPos: "clearly better than random, so it is an edge",
+      reasonCmpNeg: "clearly worse than random, do not add on it",
+      gEdgeNone: "same as random",
+      gEdgePos: "clearly better than random",
+      gEdgeNeg: "clearly worse than random",
+      gNoSample: "no pattern hit",
+      gTiny: "too few samples (n=",
+      gPosOk: "below price, more than 1 ATR away",
+      gPosNo: "no support far enough below",
+      gTrigOk: "holds today",
       anaHit: "Hit today",
       anaNoHit: "no pattern hit today",
       anaStuck: "blocked by",
-      anaPass: "all four pass",
       anaAddZone: "Add zone",
       anaStop: "Stop",
       anaTarget: "Target",
@@ -449,10 +533,6 @@ window.__ModuleLoader__.load({
       anaCI: "95% CI",
       anaNTxt: "n",
       anaBaseShort: "base",
-      anaPos_: "positive",
-      anaNeg: "negative",
-      anaNeutral: "no signal",
-      anaTiny: "too few",
       anaWhy: "Frequency is not probability; a CI that straddles the base rate is no signal.",
       hintAna: "All four must hold: edge better than base, level at least 1 ATR away, a trigger, and R:R >= 2:1. If any fails, no zone is returned.",
       c1Name: "Breakout",
@@ -746,7 +826,11 @@ window.__ModuleLoader__.load({
 .skd-ana-chip { font-size: 12px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--dsw-alias-border-l1); }
 .skd-ana-yes { color: var(--dsw-alias-state-success-primary); border-color: currentColor; }
 .skd-ana-no { color: var(--dsw-alias-state-error-primary); border-color: currentColor; }
-.skd-ana-line { font-size: 12px; color: var(--dsw-alias-label-secondary); margin-top: 6px; }
+.skd-ana-reason { font-size: 12px; line-height: 1.65; margin-top: 8px; color: var(--dsw-alias-label-primary); }
+.skd-ana-gate { display: flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 3px 0; }
+.skd-ana-mark { width: 12px; flex: none; }
+.skd-ana-gname { flex: none; min-width: 88px; }
+.skd-ana-gwhy { color: var(--dsw-alias-label-secondary); }.skd-ana-line { font-size: 12px; color: var(--dsw-alias-label-secondary); margin-top: 6px; }
 .skd-ana-sec { margin-top: 10px; }
 .skd-ana-tbl { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
 .skd-ana-tbl th { text-align: right; font-weight: 500; color: var(--dsw-alias-label-secondary); padding: 2px 4px; }
@@ -2517,9 +2601,39 @@ window.__ModuleLoader__.load({
      * autoOpen 为真时直接展开 —— 行尾那个「分析」按钮存在的唯一理由就是这个：
      * 点「分析」和点行的区别只有一处，这块要不要先展开。
      */
+    /** 四个形态的人话规则，与 lib/baserates.js 的 verify 一一对应 */
+    const COND_RULE = (id) => {
+      if (id === "C1") return T("ruleC1");
+      if (id === "C2") return T("ruleC2");
+      if (id === "C3") return T("ruleC3");
+      if (id === "C4") return T("ruleC4");
+      return "";
+    };
+
+    /** 一条判断的结论词。用词按「人话优先」：不写正/负边缘，写「有优势 / 是个坑 / 分不开」 */
+    const JUDGE_WORD = (j) => {
+      if (j === "pos") return T("judgePos");
+      if (j === "neg") return T("judgeNeg");
+      if (j === "none") return T("judgeNone");
+      return T("judgeTiny");
+    };
+
+    /**
+     * 「能不能加仓」：先说结论，再给理由，最后才是表。
+     *
+     * 第一版的教训：直接把 12 行频率表和 9 行位置表摊在用户面前，用户的第一反应是
+     * 「这我看不懂」。问题不在数字，在于**没有任何一句告诉他这些数字在回答什么问题**。
+     * 所以现在分三层：
+     *   1. 默认：一句结论 + 一句理由（这两句是代码拼的，不靠模型）
+     *   2. 展开：四条门槛逐条给「成立 / 不成立 + 为什么」
+     *   3. 再展开：原始的两张表
+     *
+     * 数据只请求一次（/analysis），三层都是同一份 payload 的不同切面。
+     */
     function CanAdd({ code, autoOpen }) {
       const [st, setSt] = React.useState({ loading: true, err: null, data: null });
       const [open, setOpen] = React.useState(Boolean(autoOpen));
+      const [raw, setRaw] = React.useState(false);
       React.useEffect(() => {
         if (!code) return undefined;
         let alive = true;
@@ -2529,72 +2643,118 @@ window.__ModuleLoader__.load({
           .catch((e) => { if (alive) setSt({ loading: false, err: e?.message ?? String(e), data: null }); });
         return () => { alive = false; };
       }, [code]);
-      // 换一只股票（或从行尾点「分析」进来）时，重置展开状态
-      React.useEffect(() => { setOpen(Boolean(autoOpen)); }, [autoOpen, code]);
+      // 换一只股票（或从行尾点「分析」进来）时，重置两层展开状态
+      React.useEffect(() => { setOpen(Boolean(autoOpen)); setRaw(false); }, [autoOpen, code]);
 
       const d = st.data;
-      // 每个键单独写死 T("…")：自检静态扫的是 T("字面量")，写成查表会让词条被误判成「没用上」
-      const whyLabel = (k) => {
-        if (k === "edge") return T("anaEdge");
-        if (k === "pos") return T("anaPos");
-        if (k === "trigger") return T("anaTrigger");
-        return T("anaRatio");
-      };
       const ok = d?.plan?.ok;
+      const whyLabel = (k) => {
+        if (k === "edge") return T("gateEdge");
+        if (k === "pos") return T("gatePos");
+        if (k === "trigger") return T("gateTrigger");
+        return T("gateRatio");
+      };
+
+      const pct = (v) => (Number.isFinite(v) ? `${Math.round(v)}%` : "—");
+      const px = (v) => (Number.isFinite(v) ? v.toFixed(2) : "—");
+
+      // ---- 第 1 层：结论 + 一句理由 -------------------------------------------
       const verdict = !d ? null
         : ok
-          ? h("span", { className: "skd-ana-verdict skd-ana-pass" }, T("anaPass"))
-          : h("span", { className: "skd-ana-verdict" }, `${T("anaStuck")} ${(d.plan?.addWhy ?? []).map(whyLabel).join("、")}`);
+          ? h("span", { className: "skd-ana-verdict skd-ana-pass" }, T("anaYesAdd"))
+          : h("span", { className: "skd-ana-verdict" }, T("anaNoAdd"));
 
-      const chip = (label, passed, key) => h("span", {
-        key,
-        className: `skd-ana-chip ${passed ? "skd-ana-yes" : "skd-ana-no"}`,
-      }, `${label} ${passed ? T("anaYes") : T("anaNo")}${passed ? " ✓" : " ✗"}`);
+      const hitText = d ? (d.primary
+        ? `${T("anaHit")}：${COND_NAME(d.primary)}（${d.primaryPeriod === "week" ? T("kWeek") : T("kDay")}）`
+        : T("anaNoHit")) : null;
 
-      const four = d ? h("div", { className: "skd-ana-four" },
-        chip(T("anaEdge"), d.plan.four.edge, "edge"),
-        chip(T("anaPos"), d.plan.four.pos, "pos"),
-        chip(T("anaTrigger"), d.plan.four.trigger, "trigger"),
-        chip(T("anaRatio"), d.plan.four.ratio, "ratio")) : null;
+      const ruleText = d?.primary ? h("div", { className: "skd-ana-line" }, COND_RULE(d.primary)) : null;
 
-      const hitLine = d ? h("div", { className: "skd-ana-line" },
-        `${T("anaHit")}：${d.primary ? `${COND_NAME(d.primary)}（${d.primaryPeriod === "week" ? T("kWeek") : T("kDay")}）` : T("anaNoHit")}`) : null;
+      /** 把「命中形态在这只票上的历史」翻成一句人话。这是整块最重要的一句 */
+      const reason = (() => {
+        if (!d) return null;
+        const r = d.edgeRow;
+        if (!d.primary) return h("div", { className: "skd-ana-reason" }, T("reasonNoHit"));
+        if (!r) return h("div", { className: "skd-ana-reason" }, T("reasonNoSample"));
+        // 这里不能用 kDay / kWeek：那是 K 线页签的文案（「日K」），
+        // 拼进句子里会变成「1 日K 之后是涨的」。单位要单独一组词条。
+        const hz = d.primaryPeriod === "week" ? `${r.horizon} ${T("afterW")}` : `${r.horizon} ${T("afterD")}`;
+        if (r.n < 15) {
+          return h("div", { className: "skd-ana-reason" },
+            `${T("reasonTinyA")} ${r.n} ${T("reasonTinyB")}`);
+        }
+        const head = `${T("reasonSeenA")} ${r.n} ${T("reasonSeenB")} ${r.up} ${T("reasonSeenC")} ${hz} ${T("reasonSeenD")} ${pct(r.upPct)}`;
+        const cmp = r.judge === "none"
+          ? `${T("reasonCmpNone")} ${pct(r.base)} —— ${T("reasonCmpNone2")}`
+          : r.judge === "pos"
+            ? `${T("reasonCmpBase")} ${pct(r.base)} —— ${T("reasonCmpPos")}`
+            : `${T("reasonCmpBase")} ${pct(r.base)} —— ${T("reasonCmpNeg")}`;
+        return h("div", { className: "skd-ana-reason" }, `${head}。${cmp}`);
+      })();
 
-      const zoneLine = d ? h("div", { className: "skd-ana-line" },
-        ok
-          ? `${T("anaAddZone")} ${num(d.plan.addZone)}　${T("anaStop")} ${num(d.plan.stop)}　${T("anaTarget")} ${num(d.plan.target)}`
-          : T("anaNoZone")) : null;
+      // ---- 第 2 层：四条门槛 ---------------------------------------------------
+      const gate = (key, passed, detail) => h("div", { className: "skd-ana-gate", key },
+        h("span", { className: `skd-ana-mark ${passed ? "skd-ana-yes" : "skd-ana-no"}` }, passed ? "✓" : "✗"),
+        h("span", { className: "skd-ana-gname" }, whyLabel(key)),
+        h("span", { className: "skd-ana-gwhy" }, detail));
 
-      // 只列「有方向的」和「今天命中的形态」：全表 40 行塞进右栏没人看，
-      // 而这两类正好回答两个问题 —— 有没有优势、今天这个形态有没有优势。
-      const rows = d ? d.rows.filter((r) => r.judge === "pos" || r.judge === "neg" || r.cond === d.primary) : [];
-      const judgeText = (j) => {
-        if (j === "pos") return T("anaPos_");
-        if (j === "neg") return T("anaNeg");
-        if (j === "none") return T("anaNeutral");
-        return T("anaTiny");
+      const gateDetail = (key) => {
+        const p = d?.plan;
+        if (!p) return "";
+        if (key === "edge") {
+          const r = d.edgeRow;
+          if (!r) return T("gNoSample");
+          if (r.n < 15) return `${T("gTiny")} ${r.n}`;
+          return r.judge === "none" ? T("gEdgeNone")
+            : r.judge === "pos" ? T("gEdgePos") : T("gEdgeNeg");
+        }
+        if (key === "pos") {
+          const det = p.detail?.pos;
+          return det?.id ? `${det.id} ${px(det.price)}，${T("gPosOk")}` : (det?.note ?? T("gPosNo"));
+        }
+        if (key === "trigger") return p.detail?.trigger?.ok ? T("gTrigOk") : (p.detail?.trigger?.note ?? "");
+        const det = p.detail?.ratio;
+        return Number.isFinite(det?.value) ? `${det.value} : 1` : (det?.note ?? "");
       };
 
-      const hist = d && open ? h("div", { className: "skd-ana-sec" },
+      const gates = d && open ? h("div", { className: "skd-ana-sec" },
+        h("div", { className: "skd-d-gt" }, T("anaGates")),
+        gate("edge", d.plan.four.edge, gateDetail("edge")),
+        gate("pos", d.plan.four.pos, gateDetail("pos")),
+        gate("trigger", d.plan.four.trigger, gateDetail("trigger")),
+        gate("ratio", d.plan.four.ratio, gateDetail("ratio"))) : null;
+
+      // ---- 价位：只给「如果四条齐了会长什么样」，不齐时说明为什么没有 -----------
+      const zone = d && open ? h("div", { className: "skd-ana-sec" },
+        h("div", { className: "skd-d-gt" }, T("anaWhere")),
+        ok
+          ? h("div", { className: "skd-ana-line" },
+            `${T("anaAddZone")} ${px(d.plan.addZone)}　${T("anaStop")} ${px(d.plan.stop)}　${T("anaTarget")} ${px(d.plan.target)}`)
+          : h("div", { className: "skd-ana-line" },
+            `${T("anaNoZone")}（${T("anaStuck")}${(d.plan.addWhy ?? []).map(whyLabel).join("、")}）`)) : null;
+
+      // ---- 第 3 层：原始表 -----------------------------------------------------
+      const rows = d ? d.rows.filter((r) => r.judge === "pos" || r.judge === "neg" || r.cond === d.primary) : [];
+      const hist = d && raw ? h("div", { className: "skd-ana-sec" },
         h("div", { className: "skd-d-gt" }, T("anaHist")),
         h("table", { className: "skd-ana-tbl" },
           h("thead", null, h("tr", null,
-            h("th", null, "id"), h("th", null, T("anaWin")), h("th", null, T("anaNTxt")),
-            h("th", null, T("anaCI")), h("th", null, T("anaBaseShort")), h("th", null, ""))),
+            h("th", null, T("anaColWhat")), h("th", null, T("anaWin")), h("th", null, T("anaNTxt")),
+            h("th", null, T("anaCI")), h("th", null, T("anaBaseShort")), h("th", null, T("anaColVerdict")))),
           h("tbody", null, ...rows.map((r) => h("tr", { key: r.id },
-            h("td", null, r.id),
-            h("td", null, Number.isFinite(r.upPct) ? `${Math.round(r.upPct)}%` : "—"),
+            h("td", null, `${COND_NAME(r.cond)} · ${T("anaHold")} ${r.horizon}${r.period === "week" ? T("unitW") : T("unitD")}${r.era ? (r.era === "A" ? T("eraAll") : T("eraRecent")) : ""}`),
+            h("td", null, pct(r.upPct)),
             h("td", null, Number.isFinite(r.n) ? String(r.n) : "—"),
             h("td", null, r.ci ? `${Math.round(r.ci[0])}~${Math.round(r.ci[1])}%` : "—"),
-            h("td", null, Number.isFinite(r.base) ? `${Math.round(r.base)}%` : "—"),
-            h("td", { className: r.judge === "pos" ? "skd-up" : r.judge === "neg" ? "skd-down" : "" }, judgeText(r.judge))))))) : null;
+            h("td", null, pct(r.base)),
+            h("td", { className: r.judge === "pos" ? "skd-up" : r.judge === "neg" ? "skd-down" : "" }, JUDGE_WORD(r.judge))))))) : null;
 
-      const lv = d && open ? h("div", { className: "skd-ana-sec" },
+      const lv = d && raw ? h("div", { className: "skd-ana-sec" },
         h("div", { className: "skd-d-gt" }, T("anaLevels")),
         ...d.levels.items.map((x) => h("div", { className: "skd-ana-lv", key: x.id },
           h("span", { className: "skd-code" }, x.id),
-          h("span", { className: "skd-num" }, num(x.price)),
-          h("span", { className: "skd-ana-sub" }, x.side === "support" ? T("anaPos") : T("anaTarget")),
+          h("span", { className: "skd-num" }, px(x.price)),
+          h("span", { className: "skd-ana-sub" }, x.side === "support" ? T("anaSupport") : x.side === "resistance" ? T("anaResistance") : T("anaFlat")),
           h("span", { className: `skd-num ${x.distPct < 0 ? "skd-down" : "skd-up"}` }, `${x.distPct > 0 ? "+" : ""}${x.distPct.toFixed(2)}%`)))) : null;
 
       const body = st.loading
@@ -2603,17 +2763,28 @@ window.__ModuleLoader__.load({
           ? h("div", { className: "skd-meta" }, `${T("anaFail")}：${st.err}`)
           : !d
             ? h("div", { className: "skd-meta" }, T("anaShort"))
-            : h("div", null, four, hitLine, zoneLine, hist, lv,
-              open ? h("div", { className: "skd-meta skd-ana-why" }, T("anaWhy")) : null);
+            : h("div", null, hitText, ruleText, reason, gates, zone, hist, lv,
+              raw ? h("div", { className: "skd-meta skd-ana-why" }, T("anaWhy")) : null);
+
+      const btns = [];
+      if (d) {
+        btns.push(h("button", {
+          key: "lv1", className: "skd-btn", "data-xs": "1", type: "button",
+          onClick: () => { setOpen((v) => !v); if (open) setRaw(false); },
+        }, open ? T("anaCollapse") : T("anaExpand")));
+        if (open) {
+          btns.push(h("button", {
+            key: "lv2", className: "skd-btn", "data-xs": "1", type: "button",
+            onClick: () => setRaw((v) => !v),
+          }, raw ? T("anaHideRaw") : T("anaShowRaw")));
+        }
+      }
 
       return h("div", { className: "skd-ana" },
         h("div", { className: "skd-ana-hd" },
           h("span", { className: "skd-ana-t" }, T("anaTitle"), h(Hint, { text: T("hintAna") })),
           verdict,
-          d ? h("button", {
-            className: "skd-btn", "data-xs": "1", type: "button",
-            onClick: () => setOpen((v) => !v),
-          }, open ? T("anaCollapse") : T("anaExpand")) : null),
+          ...btns),
         body);
     }
     function QuoteDetail({ q, onClose, analysisAutoOpen }) {
