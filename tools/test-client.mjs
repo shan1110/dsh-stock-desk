@@ -2581,7 +2581,14 @@ if (globalThis.__mountLive) {
       { id: 'C2.3d', cond: 'C2', horizon: 3, period: 'day', era: null, upPct: 40, n: 48, median: -0.78, ci: [27, 54], base: 45, judge: 'none' },
       { id: 'C2.5d', cond: 'C2', horizon: 5, period: 'day', era: null, upPct: 51, n: 39, median: 0.72, ci: [36, 66], base: 45, judge: 'none' },
     ],
-    levels: { items: [{ id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 }] },
+    levels: {
+      items: [
+        { id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 },
+        { id: 'S.lo60', price: 7.95, side: 'support', distPct: -4.33 },
+        { id: 'R.ma20', price: 8.38, side: 'resistance', distPct: 0.84 },
+        { id: 'P.cost', price: 8.55, side: 'resistance', distPct: 2.89 },
+      ],
+    },
   };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, data: ANA }) });
@@ -2620,8 +2627,16 @@ if (globalThis.__mountLive) {
       check('能不能加仓：再展开才出历史形态频率表', t3.includes('历史形态频率'));
       check('能不能加仓：表头用「形态」而不是 id', t3.includes('形态') && t3.includes('结论'));
       check('能不能加仓：表里带区间与样本量', t3.includes('49~77%') && t3.includes('83'));
-      check('能不能加仓：位置表给「支撑 / 压力」而不是「位置 / 止盈」',
-        t3.includes('支撑') && !t3.includes('止盈'));
+      check('能不能加仓：位置表按「现价下方 / 上方」分组',
+        t3.includes('现价下方') && t3.includes('现价上方'));
+      check('能不能加仓：位置表只说大白话，不出现 S./R./P. 代号',
+        !/S\.(lo|ma|atr|vp)/.test(t3) && !/R\.(hi|ma|vp)/.test(t3) && !t3.includes('P.cost'));
+      check('能不能加仓：成本价写成「你的成本价」',
+        t3.includes('你的成本价') && t3.includes('8.55'));
+      check('能不能加仓：同一价位的两条依据合并成一行',
+        t3.includes('20 交易日最低、60 交易日最低'));
+      check('能不能加仓：表头用「样本次数 / 涨的概率 / 随便哪天买」这类白词',
+        t3.includes('样本次数') && t3.includes('涨的概率') && t3.includes('随便哪天买'));
       check('能不能加仓：原始表最后才给免责句', t3.includes('历史频率不等于未来概率'));
     }
   } finally {

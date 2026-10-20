@@ -156,12 +156,28 @@ window.__ModuleLoader__.load({
       anaShort: "历史太短，算不出形态频率（至少要 30 根日线）",
       anaYesAdd: "现在可以加",
       anaNoAdd: "现在不该加",
-      anaSupport: "支撑",
-      anaResistance: "压力",
-      anaFlat: "持平",
       anaGates: "四条门槛",
       anaWhere: "位置",
       anaColWhat: "形态",
+      anaWinCol: "涨的概率",
+      anaNCol: "样本次数",
+      anaCICol: "浮动范围",
+      anaBaseCol: "随便哪天买",
+      hintAnaWin: "这个形态出现过之后，往上走的那几次占多少。单看它没用，要和右二列「随便哪天买」比。",
+      hintAnaN: "样本次数 = 去掉前后重叠之后，真正独立的次数。同一个形态连着出现好几天，只算一次。次数少于 15 不给结论。",
+      hintAnaCI: "统计上的浮动范围（95% 置信区间）。这个范围跨过了「随便哪天买」那一列，就说明这个形态跟瞎买分不开。",
+      hintAnaBase: "这只票在同样长的时间里，随便哪一天买进去往上走的比例。这是对照组 —— 不跟它比，任何「涨的概率」都是废话。",
+      lvLo20: "20 交易日最低",
+      lvLo60: "60 交易日最低",
+      lvHi60: "60 交易日最高",
+      lvMa20: "20 日均线",
+      lvMa60: "60 日均线",
+      lvAtr1: "现价下方 1 个平均波动",
+      lvAtr2: "现价下方 2 个平均波动",
+      lvVp: "成交最密集的价位",
+      lvCost: "你的成本价",
+      lvBelow: "现价下方（跌到这里可能有承接）",
+      lvAbove: "现价上方（涨到这里可能受阻）",
       anaHold: "持有",
       anaColVerdict: "结论",
       anaHideRaw: "收起数据",
@@ -233,9 +249,6 @@ window.__ModuleLoader__.load({
       anaCollapse: "收起",
       anaHist: "历史形态频率",
       anaLevels: "位置表",
-      anaWin: "胜率",
-      anaCI: "区间",
-      anaNTxt: "n",
       anaBaseShort: "基准",
       anaWhy: "历史频率不等于未来概率；区间跨过基准的格子等于没有信号。",
       hintAna: "四条同时成立才给加仓位：① 这个形态在这只票历史上显著好于基准 ② 支撑离现价够远（≥1 个 ATR）③ 有触发而不是挂死单 ④ 盈亏比 ≥ 2:1。任一条不成立就不给位置 —— 位置对、形态错是最常见的亏钱路径。",
@@ -486,12 +499,28 @@ window.__ModuleLoader__.load({
       anaShort: "History too short for pattern frequencies (needs 30 daily bars)",
       anaYesAdd: "You can add now",
       anaNoAdd: "Do not add now",
-      anaSupport: "support",
-      anaResistance: "resistance",
-      anaFlat: "at price",
       anaGates: "Four gates",
       anaWhere: "Levels",
       anaColWhat: "Pattern",
+      anaWinCol: "Chance up",
+      anaNCol: "Samples",
+      anaCICol: "Range",
+      anaBaseCol: "Random day",
+      hintAnaWin: "How often it went up after this pattern. Meaningless unless compared with the Random day column.",
+      hintAnaN: "Independent samples after removing overlap; several consecutive hits count once. Below 15 no verdict is given.",
+      hintAnaCI: "95% confidence interval. If it straddles the Random day column, the pattern is indistinguishable from buying at random.",
+      hintAnaBase: "How often this stock went up from a random day over the same horizon. The control group.",
+      lvLo20: "20-bar low",
+      lvLo60: "60-bar low",
+      lvHi60: "60-bar high",
+      lvMa20: "20-day average",
+      lvMa60: "60-day average",
+      lvAtr1: "1 average swing below price",
+      lvAtr2: "2 average swings below price",
+      lvVp: "densest traded price",
+      lvCost: "your cost",
+      lvBelow: "Below price (possible support)",
+      lvAbove: "Above price (possible resistance)",
       anaHold: "hold",
       anaColVerdict: "Verdict",
       anaHideRaw: "Hide data",
@@ -563,9 +592,6 @@ window.__ModuleLoader__.load({
       anaCollapse: "Collapse",
       anaHist: "Pattern frequencies",
       anaLevels: "Levels",
-      anaWin: "win",
-      anaCI: "95% CI",
-      anaNTxt: "n",
       anaBaseShort: "base",
       anaWhy: "Frequency is not probability; a CI that straddles the base rate is no signal.",
       hintAna: "All four must hold: edge better than base, level at least 1 ATR away, a trigger, and R:R >= 2:1. If any fails, no zone is returned.",
@@ -875,7 +901,9 @@ window.__ModuleLoader__.load({
 .skd-ana-tbl th:first-child { text-align: left; }
 .skd-ana-tbl td { text-align: right; padding: 2px 4px; border-top: 1px solid var(--dsw-alias-border-l1); }
 .skd-ana-tbl td:first-child { text-align: left; }
-.skd-ana-lv { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 0; }
+.skd-ana-lv { display: grid; grid-template-columns: 1fr 56px 56px; align-items: baseline; gap: 6px; font-size: 11px; padding: 1px 0; }
+.skd-ana-lvname { color: var(--dsw-alias-label-primary); }
+.skd-ana-sub2 { font-size: 11px; color: var(--dsw-alias-label-secondary); margin: 4px 0 1px; }
 .skd-ana-sub { color: var(--dsw-alias-label-secondary); }
 .skd-ana-why { margin-top: 8px; }
 /* 行尾操作：两个小按钮并排，编辑态换成保存/取消，宽度别跳动 */
@@ -2639,6 +2667,26 @@ window.__ModuleLoader__.load({
      * autoOpen 为真时直接展开 —— 行尾那个「分析」按钮存在的唯一理由就是这个：
      * 点「分析」和点行的区别只有一处，这块要不要先展开。
      */
+    /**
+     * 位置代号 -> 大白话。
+     *
+     * 宿主的 position 池用 S.lo20 / R.ma60 这种编号，是给 agent 工具用的（契约里「只写编号」）。
+     * 但界面上给人看，编号一个字都不该出现 —— 用户原话是「P.cost 这些我还是看不懂」。
+     */
+    const LEVEL_NAME = (id) => {
+      const base = String(id ?? "").slice(2);
+      if (base === "lo20") return T("lvLo20");
+      if (base === "lo60") return T("lvLo60");
+      if (base === "hi60") return T("lvHi60");
+      if (base === "ma20") return T("lvMa20");
+      if (base === "ma60") return T("lvMa60");
+      if (base === "atr1") return T("lvAtr1");
+      if (base === "atr2") return T("lvAtr2");
+      if (base === "vp") return T("lvVp");
+      if (base === "cost") return T("lvCost");
+      return id;
+    };
+
     /** 四个形态的人话规则，与 lib/baserates.js 的 verify 一一对应 */
     const COND_RULE = (id) => {
       if (id === "C1") return T("ruleC1");
@@ -2791,7 +2839,7 @@ window.__ModuleLoader__.load({
         }
         if (key === "pos") {
           const det = p.detail?.pos;
-          return det?.id ? `${det.id} ${px(det.price)}，${T("gPosOk")}` : (det?.note ?? T("gPosNo"));
+          return det?.id ? `${LEVEL_NAME(det.id)} ${px(det.price)}，${T("gPosOk")}` : (det?.note ?? T("gPosNo"));
         }
         if (key === "trigger") return p.detail?.trigger?.ok ? T("gTrigOk") : (p.detail?.trigger?.note ?? "");
         const det = p.detail?.ratio;
@@ -2821,8 +2869,10 @@ window.__ModuleLoader__.load({
         h("div", { className: "skd-d-gt" }, T("anaHist")),
         h("table", { className: "skd-ana-tbl" },
           h("thead", null, h("tr", null,
-            h("th", null, T("anaColWhat")), h("th", null, T("anaWin")), h("th", null, T("anaNTxt")),
-            h("th", null, T("anaCI")), h("th", null, T("anaBaseShort")), h("th", null, T("anaColVerdict")))),
+            h("th", null, T("anaColWhat")), h("th", { title: T("hintAnaWin") }, T("anaWinCol")),
+            h("th", { title: T("hintAnaN") }, T("anaNCol")),
+            h("th", { title: T("hintAnaCI") }, T("anaCICol")),
+            h("th", { title: T("hintAnaBase") }, T("anaBaseCol")), h("th", null, T("anaColVerdict")))),
           h("tbody", null, ...rows.map((r) => h("tr", { key: r.id },
             h("td", null, `${COND_NAME(r.cond)} · ${T("anaHold")} ${r.horizon}${r.period === "week" ? T("unitW") : T("unitD")}${r.era ? (r.era === "A" ? T("eraAll") : T("eraRecent")) : ""}`),
             h("td", null, pct(r.upPct)),
@@ -2831,13 +2881,34 @@ window.__ModuleLoader__.load({
             h("td", null, pct(r.base)),
             h("td", { className: r.judge === "pos" ? "skd-up" : r.judge === "neg" ? "skd-down" : "" }, JUDGE_WORD(r.judge))))))) : null;
 
-      const lv = d && raw ? h("div", { className: "skd-ana-sec" },
-        h("div", { className: "skd-d-gt" }, T("anaLevels")),
-        ...d.levels.items.map((x) => h("div", { className: "skd-ana-lv", key: x.id },
-          h("span", { className: "skd-code" }, x.id),
-          h("span", { className: "skd-num" }, px(x.price)),
-          h("span", { className: "skd-ana-sub" }, x.side === "support" ? T("anaSupport") : x.side === "resistance" ? T("anaResistance") : T("anaFlat")),
-          h("span", { className: `skd-num ${x.distPct < 0 ? "skd-down" : "skd-up"}` }, `${x.distPct > 0 ? "+" : ""}${x.distPct.toFixed(2)}%`)))) : null;
+      const lv = d && raw ? (() => {
+        // 同一个价位常被两条依据同时指向（20 日最低与 60 日最低是同一个价），
+        // 按价位合并成一行，否则界面上会出现两行一模一样的数字，看着像重复
+        const group = (side) => {
+          const same = d.levels.items.filter((x) => x.side === side);
+          const byPrice = new Map();
+          for (const x of same) {
+            const k = px(x.price);
+            if (!byPrice.has(k)) byPrice.set(k, { price: x.price, names: [], distPct: x.distPct });
+            byPrice.get(k).names.push(LEVEL_NAME(x.id));
+          }
+          const out = [...byPrice.values()];
+          out.sort((a, b) => (side === "support" ? b.price - a.price : a.price - b.price));
+          return out;
+        };
+        const row = (g, key) => h("div", { className: "skd-ana-lv", key },
+          h("span", { className: "skd-ana-lvname" }, [...new Set(g.names)].join("、")),
+          h("span", { className: "skd-num" }, px(g.price)),
+          h("span", { className: `skd-num ${g.distPct < 0 ? "skd-down" : "skd-up"}` }, `${g.distPct > 0 ? "+" : ""}${g.distPct.toFixed(2)}%`));
+        const sup = group("support");
+        const res = group("resistance");
+        return h("div", { className: "skd-ana-sec" },
+          h("div", { className: "skd-d-gt" }, T("anaLevels")),
+          sup.length ? h("div", { className: "skd-ana-sub2" }, T("lvBelow")) : null,
+          ...sup.map((g, i) => row(g, `s${i}`)),
+          res.length ? h("div", { className: "skd-ana-sub2" }, T("lvAbove")) : null,
+          ...res.map((g, i) => row(g, `r${i}`)));
+      })() : null;
 
       const body = st.loading
         ? h("div", { className: "skd-meta" }, T("anaLoading"))
