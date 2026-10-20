@@ -261,6 +261,7 @@ window.__ModuleLoader__.load({
       c4Name: "超跌",
       crashTitle: "行情台渲染出错",
       crashHint: "把这段报错发给开发者即可定位。行情数据本身没问题，是界面这一层挂了。",
+      crashWhere: "出错位置：",
 
       pagePrev: "上一页",
       pageNext: "下一页",
@@ -620,6 +621,7 @@ window.__ModuleLoader__.load({
       c4Name: "Oversold",
       crashTitle: "Quote desk render error",
       crashHint: "Send this message to the developer. The data is fine; the UI layer failed.",
+      crashWhere: "Failed at: ",
 
       pagePrev: "Prev",
       pageNext: "Next",
@@ -4273,15 +4275,30 @@ window.__ModuleLoader__.load({
      * 用 class 而不是函数组件：错误边界只能靠 getDerivedStateFromError 实现，没有 hook 版本。
      */
     class DeskBoundary extends React.Component {
-      constructor(props) { super(props); this.state = { err: null }; }
+      constructor(props) { super(props); this.state = { err: null, stack: "" }; }
       static getDerivedStateFromError(err) { return { err }; }
+      /**
+       * 为什么要把 componentStack 留下来：
+       *
+       * React 的报错在生产包里只有一行「Minified React error #310」，光凭它无法定位 ——
+       * 而 componentStack 不受压缩影响，会写清「出错的是哪一层组件」。以前只显示 message，
+       * 等于把唯一的线索丢了，只能靠猜。这里留前 6 层并同时打 console。
+       */
+      componentDidCatch(err, info) {
+        const stack = String(info?.componentStack ?? "").trim();
+        this.setState({ stack });
+        try { console.error("[dsh-stock-desk] 渲染出错", err, info); } catch { /* 控制台不可用就算了 */ }
+      }
       render() {
         if (this.state.err) {
+          const head = this.state.stack
+            ? this.state.stack.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 6).join(" → ")
+            : "";
           return h("div", { className: "skd-root skd-page" },
             h(Msg, {
               text: `${T("crashTitle")}：${String(this.state.err?.message ?? this.state.err)}`,
               err: true,
-              hint: T("crashHint"),
+              hint: head ? `${T("crashHint")}\n${T("crashWhere")}${head}` : T("crashHint"),
             }));
         }
         return this.props.children;
