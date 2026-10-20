@@ -169,6 +169,16 @@ console.log('\n【8b】持仓三态：止损优先，移动止盈只管浮盈');
   const lossNoTrim = holdPlan({ levels, exit, cost: 9.0, close: 8.25, floatPct: -8.3 });
   check('浮亏且破 MA10 → 不减半（那不是止盈是割肉）', lossNoTrim.state === 'hold', lossNoTrim.state);
   check('缺成本时不猜浮盈方向', holdPlan({ levels, exit, close: 8.25, floatPct: null }).inProfit === null);
+  // 口径可切换：trailMode='always' 之后，亏着破 MA10 也要求减半
+  const lossTrim = holdPlan({ levels, exit, cost: 9.0, close: 8.25, floatPct: -8.3, trailMode: 'always' });
+  check('trailMode=always：浮亏破 MA10 也减半', lossTrim.state === 'trim', lossTrim.state);
+
+  // 止损口径：默认掺成本纪律，改成纯技术位后不看成本
+  const lv = buildLevels({ candles: series(120, (i) => 10 + Math.sin(i / 5) * 0.8), close: 10.2, cost: 10.5 });
+  const byCost = exitPlan({ levels: lv, cost: 10.5 });
+  const byLevel = exitPlan({ levels: lv, cost: 10.5, stopBase: 'level' });
+  check('默认止损掺了成本纪律（比纯技术位更靠上）', byCost.stop > byLevel.stop, `${byCost.stop} > ${byLevel.stop}`);
+  check('纯技术位止损不看成本', byLevel.stopId === 'S.lo20', String(byLevel.stopId));
 }
 
 console.log('\n【9】今日触发：两种形态两种条件');

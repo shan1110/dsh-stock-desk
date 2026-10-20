@@ -2571,6 +2571,7 @@ if (globalThis.__mountLive) {
     },
     hold: { state: 'hold', close: 8.31, stop: 7.69, stopId: 'S.lo20', ma10: 8.3, ma20: 8.38, cost: 8.545, floatPct: -2.75, inProfit: false },
     partialDay: false,
+    settings: { trailMode: 'profit', stopBase: 'cost' },
     unlock: [{ gate: 'edge', need: 'day', candidates: ['C1'], note: '日线口径下历史上是正边缘的形态：C1' }],
     primary: 'C2',
     primaryPeriod: 'day',
@@ -2618,6 +2619,7 @@ if (globalThis.__mountLive) {
       t1.includes('出现过') && t1.includes('83') && t1.includes('47%'));
     check('能不能加仓：默认不出表、也不出四条门槛', !t1.includes('历史形态频率') && !t1.includes('四条门槛'));
     check('收盘后不显示盘中提醒', !t1.includes('还没走完'));
+    check('面板写明当前用的是哪套口径', t1.includes('当前口径') && t1.includes('移动止盈只管浮盈'));
     check('拿着还是走：默认就给出结论（拿着不动）', t1.includes('拿着还是走') && t1.includes('拿着不动'));
     check('拿着还是走：给出触发条件（跌破 7.69 才走）', t1.includes('7.69'));
     check('拿着还是走：带上你的成本与浮亏', t1.includes('8.5') && t1.includes('浮亏') && t1.includes('2.75'));

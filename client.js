@@ -302,6 +302,19 @@ window.__ModuleLoader__.load({
       redUp: "红涨绿跌",
       greenUp: "绿涨红跌",
       density: "行高",
+      anaTrailMode: "移动止盈口径",
+      anaTrailProfit: "只管浮盈（默认）",
+      anaTrailAlways: "不看盈亏，破 MA10 就减半",
+      anaStopBase: "止损口径",
+      anaStopCost: "成本与 20 日低点取更近的（默认）",
+      anaStopLevel: "只看 20 日低点（纯技术位）",
+      anaRuleTag: "当前口径",
+      ruleTagProfit: "移动止盈只管浮盈",
+      ruleTagAlways: "移动止盈不看盈亏",
+      ruleTagCost: "止损取成本与低点更近者",
+      ruleTagLevel: "止损只看技术位",
+      hintAnaTrail: "移动止盈本来是给浮盈仓位用的。改成「不看盈亏」之后，亏着的时候破 MA10 也会要求减半 —— 更严格，但等于放弃「不割肉」这条人为约束。",
+      hintAnaStop: "默认取 max(20 日低点, 成本×0.95) 再减一个 ATR：先被破的那个才算真止损。改成纯技术位后不看成本，更贴合盘面，也更容易被正常波动打掉。",
       comfortable: "宽松",
       compact: "紧凑",
       pillIndex: "药丸显示指数",
@@ -646,6 +659,19 @@ window.__ModuleLoader__.load({
       redUp: "Red up",
       greenUp: "Green up",
       density: "Row height",
+      anaTrailMode: "Trailing exit rule",
+      anaTrailProfit: "Profitable positions only (default)",
+      anaTrailAlways: "Regardless of P&L, trim when MA10 breaks",
+      anaStopBase: "Stop basis",
+      anaStopCost: "Nearer of cost and 20-bar low (default)",
+      anaStopLevel: "20-bar low only (technical)",
+      anaRuleTag: "Rules in use",
+      ruleTagProfit: "trailing only on profit",
+      ruleTagAlways: "trailing ignores P&L",
+      ruleTagCost: "stop near cost or low",
+      ruleTagLevel: "stop technical only",
+      hintAnaTrail: "Trailing exits are meant for positions in profit. Switching to regardless-of-P&L makes a losing position trim on an MA10 break too: stricter, but you give up the no-cut-loss constraint.",
+      hintAnaStop: "By default the stop is max(20-bar low, cost x 0.95) minus one ATR; whichever breaks first is the real stop. Technical-only ignores cost: closer to the chart, easier to get shaken out.",
       comfortable: "Comfortable",
       compact: "Compact",
       pillIndex: "Pill index",
@@ -2781,7 +2807,11 @@ window.__ModuleLoader__.load({
           kv(T("anaColWhy"), why, "", "h2"),
           Number.isFinite(hp.floatPct)
             ? kv(T("costA"), `${px(hp.cost)}　${hp.floatPct >= 0 ? T("floatGain") : T("floatLoss")} ${Math.abs(hp.floatPct).toFixed(2)}%`, "", "h3")
-            : null);
+            : null,
+          // 口径必须露出来：同一只票、同一天，换个口径结论可能从「拿着」变成「减半」
+          d.settings ? kv(T("anaRuleTag"),
+            `${d.settings.trailMode === "always" ? T("ruleTagAlways") : T("ruleTagProfit")}　·　${d.settings.stopBase === "level" ? T("ruleTagLevel") : T("ruleTagCost")}`,
+            "skd-ana-rule", "h4") : null);
       })();
 
       // ---- 形态：哪一条 / 规则 / 历史 / 结论 -----------------------------------------------
@@ -3052,7 +3082,7 @@ window.__ModuleLoader__.load({
       ["min", () => T("kMin")], ["day", () => T("kDay")], ["week", () => T("kWeek")], ["month", () => T("kMonth")],
     ];
 
-    /** 默认视窗根数。宿主一次给 250 根，全画出来一根只有 2.5px 宽，缩到看不出形状 */
+    /** 默认视窗根数。宿主一次给 800 根，全画出来一根只有 2px 宽，缩到看不出形状 */
     const DEFAULT_BARS = 120;
     /** 最少 20 根。再少就成折线了，K 线的开高低收没有意义 */
     const MIN_BARS = 20;
@@ -3829,6 +3859,7 @@ window.__ModuleLoader__.load({
       React.useEffect(() => pillFlag.subscribe(setPillOff), []);
       React.useEffect(() => setDraft(config), [config]);
       const setUi = (k, v) => setDraft((d) => ({ ...d, ui: { ...d.ui, [k]: v } }));
+      const setAna = (k, v) => setDraft((d) => ({ ...d, analysis: { ...d.analysis, [k]: v } }));
       const setPill = (k, v) => setDraft((d) => ({ ...d, pill: { ...d.pill, [k]: v } }));
       return h("div", { className: "skd-set" },
         h("label", { className: "skd-f" }, h("span", { className: "skd-f-l" }, T("colorScheme")),
@@ -3842,6 +3873,19 @@ window.__ModuleLoader__.load({
             onChange: (e) => setUi("density", e.target.value) },
             h("option", { value: "comfortable" }, T("comfortable")),
             h("option", { value: "compact" }, T("compact")))),
+        // 分析的两个口径：它们改变结论，所以必须能被看到、能被改
+        h("label", { className: "skd-f" },
+          h("span", { className: "skd-f-l" }, T("anaTrailMode"), h(Hint, { text: T("hintAnaTrail") })),
+          h("select", { className: "skd-select", value: draft.analysis?.trailMode ?? "profit",
+            onChange: (e) => setAna("trailMode", e.target.value) },
+            h("option", { value: "profit" }, T("anaTrailProfit")),
+            h("option", { value: "always" }, T("anaTrailAlways")))),
+        h("label", { className: "skd-f" },
+          h("span", { className: "skd-f-l" }, T("anaStopBase"), h(Hint, { text: T("hintAnaStop") })),
+          h("select", { className: "skd-select", value: draft.analysis?.stopBase ?? "cost",
+            onChange: (e) => setAna("stopBase", e.target.value) },
+            h("option", { value: "cost" }, T("anaStopCost")),
+            h("option", { value: "level" }, T("anaStopLevel")))),
         h("div", { className: "skd-f" }, h("span", { className: "skd-f-l" }, T("pillIndex")),
           h("select", { className: "skd-select", value: draft.pill?.indexCode ?? "sh000001",
             onChange: (e) => setPill("indexCode", e.target.value) },
