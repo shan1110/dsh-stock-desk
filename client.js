@@ -159,6 +159,8 @@ window.__ModuleLoader__.load({
       anaGates: "四条门槛",
       anaWhere: "位置",
       anaColWhat: "形态",
+      intradayTitle: "盘中：今天这根还没走完",
+      intradayNote: "历史上那些次数不受影响（它们都是走完的 K 线）。但两处会变：①「今天命中什么形态」收盘前可能变，因为量还没走完 ② 量比按已成交量算，上午会明显偏低。结论请以收盘后为准。",
       anaWinCol: "涨的概率",
       anaNCol: "样本次数",
       anaCICol: "浮动范围",
@@ -503,6 +505,8 @@ window.__ModuleLoader__.load({
       anaGates: "Four gates",
       anaWhere: "Levels",
       anaColWhat: "Pattern",
+      intradayTitle: "Intraday: today's bar is not finished",
+      intradayNote: "Historical counts are unaffected (those bars are complete). Two things still move: the pattern that hits today may change before the close because volume is incomplete, and the volume ratio is understated in the morning. Treat the verdict as final only after the close.",
       anaWinCol: "Chance up",
       anaNCol: "Samples",
       anaCICol: "Range",
@@ -889,6 +893,9 @@ window.__ModuleLoader__.load({
 .skd-ana-yes { color: var(--dsw-alias-state-success-primary); border-color: currentColor; }
 .skd-ana-no { color: var(--dsw-alias-state-error-primary); border-color: currentColor; }
 .skd-ana-warn { color: var(--dsw-alias-state-warn-primary); }
+.skd-ana-intraday { margin: 6px 0 2px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--dsw-alias-state-warn-primary); }
+.skd-ana-intraday-t { font-size: 12px; color: var(--dsw-alias-state-warn-primary); font-weight: 600; }
+.skd-ana-intraday-n { font-size: 11px; color: var(--dsw-alias-label-secondary); line-height: 1.6; margin-top: 2px; }
 .skd-ana-reason { font-size: 12px; line-height: 1.65; margin-top: 8px; color: var(--dsw-alias-label-primary); }
 .skd-ana-kv { display: grid; grid-template-columns: 58px 1fr; gap: 2px 8px; font-size: 12px; padding: 2px 0; }
 .skd-ana-k { color: var(--dsw-alias-label-secondary); }
@@ -2924,13 +2931,18 @@ window.__ModuleLoader__.load({
           })());
       })() : null;
 
+      // 盘中提醒放在最前面：用户可以接受「数字会变」，但不能接受「不知道它会变」
+      const intraday = d && d.partialDay ? h("div", { className: "skd-ana-intraday" },
+        h("div", { className: "skd-ana-intraday-t" }, T("intradayTitle")),
+        h("div", { className: "skd-ana-intraday-n" }, T("intradayNote"))) : null;
+
       const body = st.loading
         ? h("div", { className: "skd-meta" }, T("anaLoading"))
         : st.err
           ? h("div", { className: "skd-meta" }, `${T("anaFail")}：${st.err}`)
           : !d
             ? h("div", { className: "skd-meta" }, T("anaShort"))
-            : h("div", null, holdBlock, patternBlock, unlock, path, gates, hist, lv,
+            : h("div", null, intraday, holdBlock, patternBlock, unlock, path, gates, hist, lv,
               raw ? h("div", { className: "skd-meta skd-ana-why" }, T("anaWhy")) : null);
 
       const btns = [];

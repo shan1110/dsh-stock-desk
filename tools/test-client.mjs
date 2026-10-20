@@ -2570,6 +2570,7 @@ if (globalThis.__mountLive) {
       },
     },
     hold: { state: 'hold', close: 8.31, stop: 7.69, stopId: 'S.lo20', ma10: 8.3, ma20: 8.38, cost: 8.545, floatPct: -2.75, inProfit: false },
+    partialDay: false,
     unlock: [{ gate: 'edge', need: 'day', candidates: ['C1'], note: '日线口径下历史上是正边缘的形态：C1' }],
     primary: 'C2',
     primaryPeriod: 'day',
@@ -2596,6 +2597,19 @@ if (globalThis.__mountLive) {
   const btnByText = (m, label) => m.all((n) => n.type === 'button'
     && JSON.stringify(n.children ?? n.props?.children ?? '').includes(label))[0];
   try {
+    // 盘中提醒：同一份 payload 把 partialDay 打开，必须多出一条提醒，且不改变结论
+    {
+      const realFetch2 = globalThis.fetch;
+      globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, data: { ...ANA, partialDay: true } }) });
+      try {
+        const mi = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: false });
+        const ti = JSON.stringify(mi.tree);
+        check('盘中：给出「今天这根还没走完」的提醒', ti.includes('还没走完'));
+        check('盘中：说清量比会偏低、结论以收盘为准', ti.includes('量比按已成交量算') && ti.includes('收盘后为准'));
+        check('盘中：提醒不改变「现在不该加」的结论', ti.includes('现在不该加'));
+      } finally { globalThis.fetch = realFetch2; }
+    }
+
     const m1 = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: false });
     const t1 = txt(m1);
     check('能不能加仓：默认给结论（现在不该加）', t1.includes('现在不该加'));
@@ -2603,6 +2617,7 @@ if (globalThis.__mountLive) {
     check('能不能加仓：默认给一句「为什么」，带样本数与对比',
       t1.includes('出现过') && t1.includes('83') && t1.includes('47%'));
     check('能不能加仓：默认不出表、也不出四条门槛', !t1.includes('历史形态频率') && !t1.includes('四条门槛'));
+    check('收盘后不显示盘中提醒', !t1.includes('还没走完'));
     check('拿着还是走：默认就给出结论（拿着不动）', t1.includes('拿着还是走') && t1.includes('拿着不动'));
     check('拿着还是走：给出触发条件（跌破 7.69 才走）', t1.includes('7.69'));
     check('拿着还是走：带上你的成本与浮亏', t1.includes('8.5') && t1.includes('浮亏') && t1.includes('2.75'));
