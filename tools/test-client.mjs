@@ -1504,10 +1504,13 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
     const headTools = cssRule('.skd-card-h>.skd-tools');
     const srRule = cssRule('.skd-sr');
     check('自选卡头右半区永不换行', /flex-wrap:\s*nowrap/.test(headTools), headTools);
-    check('搜索框是卡头里唯一可伸缩的那个（min-width 不能放太大）',
-      /flex:\s*1/.test(srRule)
-        && Number((/min-width:\s*([0-9]+)px/.exec(srRule) ?? [])[1] ?? 999) <= 90,
+    // 搜索框要「短」：不许涨（flex-grow:0）且有明确的基准宽度，同时仍可收缩以防溢出
+    check('搜索框宽度有上限，不再撑满整行',
+      /flex:\s*0 1 (\d+)px/.test(srRule)
+        && Number(/flex:\s*0 1 (\d+)px/.exec(srRule)[1]) <= 300,
       srRule);
+    check('搜索框仍可收缩，窄屏下不会顶出卡片',
+      Number((/min-width:\s*([0-9]+)px/.exec(srRule) ?? [])[1] ?? 999) <= 120, srRule);
     // 通用 .skd-tools 仍保留 wrap，设置页那排按钮的行为不能被改头换面
     check('通用 .skd-tools 仍是 wrap（设置页那排按钮不受影响）',
       /flex-wrap:\s*wrap/.test(cssRule('.skd-tools')), cssRule('.skd-tools'));

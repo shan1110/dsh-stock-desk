@@ -633,10 +633,10 @@ window.__ModuleLoader__.load({
    空间不够时让搜索框变窄，而不是把这一行拆成两行。
    原先这里是 wrap + .skd-sr 的 min-width:170px，两者一叠加就必然换行；
    作用域限定在卡头内，设置页那排按钮仍用上面通用的 wrap。 */
-.skd-card-h>.skd-tools{flex-wrap:nowrap;flex:1 1 auto;min-width:0}
+.skd-card-h>.skd-tools{flex-wrap:nowrap;flex:1 1 auto;min-width:0;justify-content:flex-end}
 /* 刷新相关的一组：nowrap 保证倒计时、刷新间隔、通知不会互相拆到两行去 */
 .skd-toolgroup{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;flex:0 0 auto}
-.skd-sr{position:relative;flex:1 1 120px;min-width:70px}
+.skd-sr{position:relative;flex:0 1 220px;min-width:90px}
 .skd-sr-list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow-y:auto;
   border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay);
   box-shadow:0 8px 24px rgba(0,0,0,.18)}
