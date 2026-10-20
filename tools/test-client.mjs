@@ -240,6 +240,7 @@ check('代码池文件存在', readFileSync(join(ROOT, 'data', 'universe.json'),
 // ---- 明细视图：把 §8 的验尸标准变成机器判定 ------------------------------------
 const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, QuoteDetail, QuoteTable, IndexStrip, fieldText, positionRows, rangeRatio, orderRatio, cashText, money, Holdings, MonitorBar, DeskBoundary,
   rowEditDraft, mergeEditDraft,
+  pnlOf, sortQuotes, PAGE_SIZE,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
   desk, DeskPage, DeskButton, Pill, SettingsTab } = mod.__test ?? {};
@@ -1392,9 +1393,12 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
       quoteDate({}) === null && quoteDate({ time: 'abc' }) === null && quoteDate(null) === null);
     check('todayKey 是 YYYY-MM-DD 且按北京时区', /^\d{4}-\d{2}-\d{2}$/.test(todayKey()), todayKey());
 
+    // time 在行情外层，不在 fields 里 —— 这是实测的腾讯返回形状（dashboard 快照
+    // 里 fields 只有 25 个指标，日期在件外层）。先前装置把 time 塞进 fields，
+    // 于是「昨收」和按日期生效的「今买」两条断言全靠装置的形状才绿。
     const yRows = [{ code: 'sz159558', name: '半导体设备ETF', kind: 'fund',
-      fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700,
-        time: '20261019161439' } }];
+      time: '20261019161439',
+      fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700 } }];
     const yCfg = { positions: { sz159558: { cost: 0.905, shares: 1000 } }, alerts: {} };
     const ytxt = texts(QuoteTable({ list: yRows, watch: true, onPick: () => {}, config: yCfg,
       editingCode: null, draft: null })).join('|');
@@ -1405,8 +1409,8 @@ check('明细 q 为空时不渲染', QuoteDetail({ q: null }) === null);
     // 今天的行情（time 是今天）→ 今日盈亏正常算
     const tKey = todayKey().replace(/-/g, '');
     const tRows = [{ code: 'sz159558', name: '半导体设备ETF', kind: 'fund',
-      fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700,
-        time: tKey + '101500' } }];
+      time: tKey + '101500',
+      fields: { price: 0.89, prevClose: 0.936, changePct: -4.92, turnover: 7.75, amount: 133700 } }];
     const ttxt = texts(QuoteTable({ list: tRows, watch: true, onPick: () => {}, config: yCfg,
       editingCode: null, draft: null })).join('|');
     check('今天的行情：今日盈亏按昨收算出来（-46.00）', ttxt.includes('-46.00'), ttxt.slice(0, 240));
@@ -1973,6 +1977,145 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
   } else {
     console.log('  SKIP  交互层用例（没有 mountLive 运行时）');
   }
+}
+
+// ---- 自选表的排序与翻页 -----------------------------------------------------
+// 用户要求「一页展示 10 条」并「支持按表头排序」。三条都是可判定的行为：
+// 一页几条、点完表头第一行是谁、没数据的行排在哪。
+{
+  const T = todayKey();
+  const tdKey = `${T.replace(/-/g, '')}101500`;
+  const yKey = '20260101101500';
+  const mkQ = (price, prev, time) => ({ code: 'sz000001', name: '试', time, fields: { price, prevClose: prev } });
+  const pos = { cost: 10.5, shares: 100 };
+
+  // 盈亏拆解。今日盈亏的基准价分三种情况，错一种就是账算错了
+  const a1 = pnlOf(mkQ(11, 10, tdKey), pos, T);
+  check('没勾今买：今日盈亏按昨收算（(11-10)*100）', a1.todayPnl === 100, String(a1.todayPnl));
+  check('持仓盈亏始终按成本价算（(11-10.5)*100）', a1.holdPnl === 50, String(a1.holdPnl));
+  check('今买是日期字符串且等于今天：基准换成成本价',
+    pnlOf(mkQ(11, 10, tdKey), { ...pos, todayBuy: T }, T).todayPnl === 50,
+    String(pnlOf(mkQ(11, 10, tdKey), { ...pos, todayBuy: T }, T).todayPnl));
+  check('今买是旧数据的 true：同样算今买',
+    pnlOf(mkQ(11, 10, tdKey), { ...pos, todayBuy: true }, T).todayPnl === 50);
+  check('今买是更早的日子：不生效，回到昨收基准',
+    pnlOf(mkQ(11, 10, tdKey), { ...pos, todayBuy: '2025-01-01' }, T).todayPnl === 100);
+  const st = pnlOf(mkQ(11, 10, yKey), pos, T);
+  check('行情不是今天：今日盈亏无从谈起，返回 null', st.todayPnl === null && st.stale === true,
+    JSON.stringify({ todayPnl: st.todayPnl, stale: st.stale }));
+  check('行情不是今天：持仓盈亏照算（那是真实盈亏）', st.holdPnl === 50, String(st.holdPnl));
+  const noShares = pnlOf(mkQ(11, 10, tdKey), { cost: 10.5 }, T);
+  check('没填份额：两个盈亏都是 null，不是 0',
+    noShares.todayPnl === null && noShares.holdPnl === null,
+    JSON.stringify({ t: noShares.todayPnl, h: noShares.holdPnl }));
+
+  // 排序。名字用拉丁字母，免得断言依赖运行环境的 ICU 中文排序表
+  const R = (name, pct, pnl, held) => ({
+    q: { code: name, name }, f: { changePct: pct }, one: { held },
+    todayPnl: pnl, holdPnl: null, price: pct, cost: null, shares: null,
+  });
+  const list = [R('B', 3, 10, true), R('A', -2, null, false), R('C', 1, 0, false)];
+  const names = (arr) => arr.map((x) => x.q.name).join('');
+  check('按涨幅降序', names(sortQuotes(list, 'changePct', 'desc')) === 'BCA', names(sortQuotes(list, 'changePct', 'desc')));
+  check('按涨幅升序', names(sortQuotes(list, 'changePct', 'asc')) === 'ACB', names(sortQuotes(list, 'changePct', 'asc')));
+  // 没数据的行永远垫底：翻面时如果跟着翻，「没数据」会挤到涨得最多的前面
+  check('按今日盈亏降序：没数据的垫底',
+    names(sortQuotes(list, 'todayPnl', 'desc')) === 'BCA', names(sortQuotes(list, 'todayPnl', 'desc')));
+  check('按今日盈亏升序：没数据的仍然垫底',
+    names(sortQuotes(list, 'todayPnl', 'asc')) === 'CBA', names(sortQuotes(list, 'todayPnl', 'asc')));
+  check('按名称升序', names(sortQuotes(list, 'name', 'asc')) === 'ABC', names(sortQuotes(list, 'name', 'asc')));
+  check('按持有排序：持有的在前', names(sortQuotes(list, 'held', 'desc')) === 'BAC', names(sortQuotes(list, 'held', 'desc')));
+  check('不认识的排序键：原样返回，不重排', sortQuotes(list, 'nope', 'desc') === list);
+  check('排序不改动传进来的数组', list.map((x) => x.q.name).join('') === 'BAC', names(list));
+
+  // 翻页与点表头：靠 mountLive 才点得到真元素
+  if (globalThis.__mountLive) {
+    // 名字补零：股票1 / 股票10 用前缀判断会混，断言就变成靠不住的
+    const mkRow = (i) => ({
+      code: `sz${String(i).padStart(6, '0')}`, name: `股票${String(i).padStart(2, '0')}`,
+      kind: 'stock', time: tdKey,
+      fields: { price: 10 + i, changePct: i, prevClose: 10, turnover: 1, amount: 1000 },
+    });
+    const twelve = Array.from({ length: 12 }, (_, k) => mkRow(k + 1));
+    const m = await globalThis.__mountLive(entry, 'QuoteTable', {
+      list: twelve, watch: true, onPick: () => {},
+      config: { positions: {}, alerts: {} }, editingCode: null, draft: null,
+    });
+    const rowNames = () => m.all((n) => n.props?.className === 'skd-name skd-name-btn')
+      .map((n) => (n.children ?? []).find((c) => typeof c === 'string') ?? '')
+      .map((c) => (typeof c === 'object' ? '' : c));
+    // children 里第一个 span 才是名字，退一步直接取整棵子树的文字
+    const rowText = () => m.all((n) => n.props?.className === 'skd-name skd-name-btn')
+      .map((n) => texts(n).join(''));
+    check('一页只画 10 行（12 只被切开）', rowText().length === 10, String(rowText().length));
+    const pageText = () => texts(m.tree).join('|');
+    check('分页器显示 1 / 2 页', pageText().includes('1 / 2 页'), pageText().slice(-120));
+    const btnByText = (label) => m.all((n) => n.props?.type === 'button'
+      && texts(n).join('') === label)[0];
+    check('第一页的「上一页」是禁用的', btnByText('上一页')?.props?.disabled === true, '');
+    check('第一页的「下一页」可点', btnByText('下一页')?.props?.disabled === false, '');
+
+    await m.click(btnByText('下一页'));
+    check('第二页只剩 2 行', rowText().length === 2, String(rowText().length));
+    check('第二页画的是第 11、12 只',
+      rowText().join('|').includes('股票11') && rowText().join('|').includes('股票12'),
+      rowText().join('|'));
+    check('第二页的「下一页」变成禁用', btnByText('下一页')?.props?.disabled === true, '');
+
+    // 点表头排序：第一次点按常识给方向（数字列降序）
+    const thOf = (key) => m.all((n) => n.props?.['data-key'] === key)[0];
+    check('表头是可点的按钮（data-key=changePct）', Boolean(thOf('changePct')));
+    await m.click(thOf('changePct'));
+    check('点涨幅：降序，第一行是涨得最多的',
+      (rowText()[0] ?? '').includes('股票12'), rowText()[0]);
+    check('排序列的表头标出方向（▼）', texts(thOf('changePct')).join('').includes('▼'),
+      texts(thOf('changePct')).join(''));
+    // 换排序要回第一页：第 2 页装的是另一批票，而此刻想看的是排最前的那几只
+    check('换排序后回到第一页，不会停在刚才那一页', rowText().length === 10, String(rowText().length));
+    await m.click(thOf('changePct'));
+    check('再点一次同一个表头：翻成升序',
+      (rowText()[0] ?? '').includes('股票01'), rowText()[0]);
+    check('升序时箭头是 ▲', texts(thOf('changePct')).join('').includes('▲'),
+      texts(thOf('changePct')).join(''));
+    // 名称列的初次方向是升序：字符串列默认从 A 排到 Z 才符合直觉
+    await m.click(thOf('name'));
+    check('名称列第一次点按升序（股票01 在前）', (rowText()[0] ?? '').includes('股票01'), rowText()[0]);
+    check('排序与翻页同时生效：排序后仍是 10 行', rowText().length === 10, String(rowText().length));
+    check('遍历没踩回边（attachRefs 的 ref.current 不会把 walk 带死）', m.cycleCount() === 0,
+      String(m.cycleCount()));
+
+    // 编辑态：改到一半按了排序，那一行不能被翻到别的页去 ——
+    // 「保存 / 取消」跟着消失的话，草稿还在内存里却没有入口提交
+    const m2 = await globalThis.__mountLive(entry, 'QuoteTable', {
+      list: twelve, watch: true, onPick: () => {},
+      config: { positions: {}, alerts: {} },
+      editingCode: 'sz000011',
+      draft: { positions: { sz000011: { cost: 12, shares: 100 } }, alerts: {} },
+    });
+    const rows2 = () => m2.all((n) => n.props?.className === 'skd-name skd-name-btn')
+      .map((n) => texts(n).join(''));
+    const p2 = () => texts(m2.tree).join('|');
+    check('编辑中的那一行自动翻到它所在的那一页', rows2().join('|').includes('股票11'), rows2().join('|'));
+    check('编辑态下页码跟着那一行走（2 / 2 页）', p2().includes('2 / 2 页'), p2().slice(-80));
+    check('编辑态下「上一页 / 下一页」都禁用（点了也不会动，别做成假按钮）',
+      m2.all((n) => n.props?.type === 'button'
+        && ['上一页', '下一页'].includes(texts(n).join(''))).every((n) => n.props?.disabled === true),
+      '');
+    check('编辑态下「保存 / 取消」就在视野里', p2().includes('保存') && p2().includes('取消'), '');
+  } else {
+    console.log('  SKIP  排序与翻页的交互用例（没有 mountLive 运行时）');
+  }
+}
+
+// 搜索框压住右边按钮的回归闸。
+// 根因是 .skd-input 只写了 width:100% 而没有 box-sizing:border-box：
+// 默认 content-box 下宽度还要加上 9px×2 内边距与 1px×2 边框，实际宽出 20px，
+// 那 20px 正好压在选题按钮上。两个条件缺一不可，所以两条都断言。
+{
+  check('输入框是 border-box（width:100% 才等于容器宽度）',
+    /\.skd-input,\.skd-select\{[^}]*box-sizing:border-box/.test(clientSrc), '');
+  check('搜索框仍按容器宽度铺满（width:100%）',
+    /className: "skd-input", style: \{ width: "100%" \}/.test(clientSrc), '');
 }
 
 // ---- 结论 -----------------------------------------------------------------

@@ -49,6 +49,7 @@ window.__ModuleLoader__.load({
       upDown: "涨/跌",
       boardNoDrill: "该板块没有可下钻的成分股数据",
       pages: "页",
+      hintSort: "点一下排序，再点一次换方向；没数据的行排最后",
       freeLimit: "同花顺免费只开放前 5 页，更多需登录",
       // 跌停池没有现成接口，走本地全市场扫描，口径与同花顺不同，必须标出来
       localScan: "本地扫描",
@@ -263,6 +264,7 @@ window.__ModuleLoader__.load({
       upDown: "Up/Down",
       boardNoDrill: "No constituent data available for this sector",
       pages: "pages",
+      hintSort: "Click to sort, click again to reverse; empty rows go last",
       freeLimit: "THS exposes only the first 5 pages anonymously; sign in for the rest",
       localScan: "local scan",
       estimated: "est.",
@@ -474,6 +476,12 @@ window.__ModuleLoader__.load({
   font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary)}
 .skd-card-b{padding:6px 0}
 .skd-tbl{width:100%;border-collapse:collapse}
+/* 表头可点排序。按钮长在 th 里，去掉边框背景只留文字，
+   否则每个表头都会变成一个方框，比表头本身还显眼 */
+.skd-th-sort{appearance:none;border:0;background:none;padding:0;margin:0;font:inherit;
+  color:var(--skd-dim);cursor:pointer;white-space:nowrap}
+.skd-th-sort:hover{color:var(--dsw-alias-label-primary)}
+.skd-th-sort[data-dir="asc"],.skd-th-sort[data-dir="desc"]{color:var(--dsw-alias-label-primary);font-weight:600}
 .skd-tbl th{font-weight:400;font-size:11px;color:var(--skd-dim);text-align:right;
   padding:4px 10px;white-space:nowrap}
 .skd-tbl th:first-child{text-align:left}
@@ -645,7 +653,7 @@ window.__ModuleLoader__.load({
 .skd-src-i{display:inline-flex;align-items:center}
 .skd-input,.skd-select{appearance:none;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;
   background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;
-  padding:5px 9px;min-width:0}
+  padding:5px 9px;min-width:0;box-sizing:border-box}
 .skd-input:focus-visible,.skd-select:focus-visible,.skd-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .skd-btn{appearance:none;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;padding:5px 11px;cursor:pointer}
@@ -1582,13 +1590,17 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 从行情的 time 字段取出它属于哪一天。
+     * 从行情里取出它属于哪一天。
      *
+     * 参数是整只行情，不是 fields —— 腾讯把日期放在件外层的 time，
+     * fields 里只有 25 个数值指标。早先这里读的是 fields.time，
+     * 而真实数据里那个字段根本不存在，于是 quoteDate 永远返回 null：
+     * 「昨收」标签从不出现，按日期生效的「今买」也从不生效。
      * 腾讯给的是 20261019161439 这种紧凑格式；取前 8 位就是日期。
-     * 取不到就返回 null —— 那种情况下不做「是不是旧数据」的判断，保持原行为。
+     * 取不到就返回 null —— 那种情况下不做「是不是旧数据」的判断。
      */
-    function quoteDate(f) {
-      const t = f?.time;
+    function quoteDate(q) {
+      const t = q?.time;
       if (typeof t !== "string" || t.length < 8 || !/^[0-9]{8}/.test(t)) return null;
       return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
     }
@@ -1743,8 +1755,118 @@ window.__ModuleLoader__.load({
      *
      * @param {string|null} editingCode 正在编辑的行代码，null 表示整表只读
      */
+    /**
+     * 「当日买入」判定。老数据是 true，新数据是日期字符串，
+     * 只有等于行情所属日期才算数 —— 否则昨天勾的今天还生效。
+     *
+     * 勾选框的 checked 和今日盈亏的基准必须共用这一个判定：两边各写一份的话，
+     * 刷新后会出现「勾是空的、盈亏却按成本算」这种自相矛盾的界面。
+     */
+    function isBoughtToday(one, qd) {
+      return one?.todayBuy === true || (qd !== null && one?.todayBuy === qd);
+    }
+
+    /**
+     * 一只股票的盈亏拆解。
+     *
+     * 抽成纯函数，是因为「表里显示的数字」和「按这一列排序用的键」必须是同一套算法。
+     * 两处各写一份的话，按今日盈亏排出来的顺序会和眼睛看到的数字对不上，
+     * 而这种错位只在两只票数值接近时才暴露 —— 肉眼几乎抓不到。
+     *
+     * @param {object} q 整只行情（含 code / name / time / fields）
+     * @param {object} one 该股的持仓配置（cost / shares / todayBuy / held）
+     * @param {string} today yyyy-mm-dd
+     */
+    function pnlOf(q, one, today) {
+      const f = F(q);
+      const price = nOr(f?.price);
+      const prev = nOr(f?.prevClose);
+      const cost = nOr(one?.cost);
+      const shares = nOr(one?.shares);
+      const qd = quoteDate(q);
+      // 行情不是今天的 → 今日盈亏无从谈起，按 null 处理，
+      // 不让昨天的涨幅冒充今天的盈亏
+      const stale = qd !== null && qd !== today;
+      /**
+       * 「今买」按日历上的今天算，不看行情属于哪一天。
+       *
+       * 用行情日期会出两种错：快照是昨天的时候，用户明明今天勾了「今买」，
+       * 勾选框却显示没勾；而快照还是昨天时今日盈亏本来就是「—」，
+       * 不存在「勾是空的、盈亏却按成本算」那种自相矛盾。
+       */
+      const bought = isBoughtToday(one, today);
+      // 今买的仓位用成本价当基准，否则才用昨收
+      const base = bought ? cost : prev;
+      const todayPnl = stale || shares === null || price === null || base === null
+        ? null : (price - base) * shares;
+      const holdPnl = shares !== null && price !== null && cost !== null
+        ? (price - cost) * shares : null;
+      return { qd, price, prev, cost, shares, stale, bought, base, todayPnl, holdPnl };
+    }
+
+    /** 每页多少行。板块下钻那两处也是 10，别改单边 */
+    const PAGE_SIZE = 10;
+
+    /**
+     * 表格能排序的列。提醒那两列不在里面：按「低价提醒」排序对你没有任何用处。
+     *
+     * 取值统一走 sortVal，键名与表头的 data-key 一一对应 —— 加一列忘了加这里，
+     * 表现是点了表头没反应，比报错还难查。
+     */
+    const SORT_KEYS = ["name", "held", "price", "changePct", "turnover", "amount",
+      "cost", "shares", "todayPnl", "holdPnl"];
+
+    function sortVal(it, key) {
+      switch (key) {
+        case "name": return String(it.q?.name ?? it.q?.code ?? "");
+        case "held": return it.one?.held === true ? 1 : 0;
+        case "price": return nOr(it.f?.price);
+        case "changePct": return nOr(it.f?.changePct);
+        case "turnover": return nOr(it.f?.turnover);
+        case "amount": return nOr(it.f?.amount);
+        case "cost": return nOr(it.one?.cost);
+        case "shares": return nOr(it.one?.shares);
+        case "todayPnl": return it.todayPnl;
+        case "holdPnl": return it.holdPnl;
+        default: return null;
+      }
+    }
+
+    /**
+     * 排序。没数据的行（null）永远垫底，不随正逆序翻面 ——
+     * 翻面的话，按涨跌排序时「没数据」会挤在涨得最多的那几只前面，
+     * 而那几行恰恰是你最想先看到的。
+     */
+    function sortQuotes(items, key, dir) {
+      if (!key || !SORT_KEYS.includes(key)) return items;
+      const mul = dir === "asc" ? 1 : -1;
+      return [...items].sort((a, b) => {
+        const va = sortVal(a, key);
+        const vb = sortVal(b, key);
+        const na = va === null || va === undefined;
+        const nb = vb === null || vb === undefined;
+        if (na && nb) return 0;
+        if (na) return 1;
+        if (nb) return -1;
+        if (typeof va === "number" && typeof vb === "number") return (va - vb) * mul;
+        // 名称按中文排序：股票名基本是中文，用码位比大小会排成随机顺序
+        return String(va).localeCompare(String(vb), "zh-Hans-CN") * mul;
+      });
+    }
+
     function QuoteTable({ list, watch, onRemove, onPick, config, editingCode, draft, onChange,
       onEdit, onSave, onCancel }) {
+      /**
+       * 排序与翻页都放组件内：QuoteTable 只有自选表一个调用点，
+       * 状态往上传要给 DeskPage 再加两个 useState，没有收益。
+       *
+       * 两个钩子必须在「空列表直接 return」之前 —— 否则 list 变空的那一次渲染
+       * 少调用两个钩子，React 直接抛 rendered fewer hooks than expected，
+       * 表现是整张表消失，而错误信息里不会出现「表」这个字。
+       */
+      const [sort, setSort] = React.useState({ key: null, dir: "desc" });
+      const [page, setPage] = React.useState(0);
+
       if (!Array.isArray(list) || list.length === 0) return h(Msg, { text: T("empty") });
       // 表格渲染时取一次「今天」，整张表用同一个基准，避免逐行调用跨过零点
       const today = todayKey();
@@ -1753,14 +1875,6 @@ window.__ModuleLoader__.load({
         const s = editingCode === code ? draft : config;
         return (kind === "pos" ? (s?.positions ?? {}) : (s?.alerts ?? {}))[code] ?? {};
       };
-      /**
-       * 「当日买入」判定。老数据是 true，新数据是日期字符串，
-       * 只有等于行情所属日期才算数 —— 否则昨天勾的今天还生效。
-       *
-       * 勾选框的 checked 和今日盈亏的基准必须共用这一个判定：两边各写一份的话，
-       * 刷新后会出现「勾是空的、盈亏却按成本算」这种自相矛盾的界面。
-       */
-      const isBoughtToday = (one, qd) => one?.todayBuy === true || (qd !== null && one?.todayBuy === qd);
       const cell = (code, kind, field, step) => {
         const one = rowOf(code, kind);
         return editingCode === code
@@ -1774,26 +1888,70 @@ window.__ModuleLoader__.load({
             nOr(one[field]) === null ? "—" : String(nOr(one[field])));
       };
 
-      return h("table", { className: "skd-tbl skd-htbl" },
-        h("thead", null, h("tr", null,
-          // 表头是「名称」不是「自选」：这一列列的是股票名字，而卡片本身已经叫自选了，
-          // 再写一遍自选只是把标题重复进表头，占地方还答非所问。
-          h("th", null, T("stock")),
-          // 持有标记紧挨名称：它是这一行的属性，不是行情指标，别混进后面涨跌那一片
-          watch ? h("th", { className: "skd-heldcol" }, T("held")) : null,
-          h("th", null, T("price")),
-          h("th", null, T("pct")),
-          h("th", null, T("turnover")),
-          h("th", null, T("amount")),
-          // 以下五列只在自选表里出现（持仓 / 监控都属于自选股的属性）
-          watch ? h("th", null, T("cost")) : null,
-          watch ? h("th", null, T("shares")) : null,
-          watch ? h("th", null, T("todayPnl")) : null,
-          watch ? h("th", null, T("holdPnl")) : null,
-          watch ? h("th", null, T("alertLow")) : null,
-          watch ? h("th", null, T("alertHigh")) : null,
-          watch ? h("th", null, "") : null)),
-        h("tbody", null, ...list.map((q) => h("tr", { key: q.code },
+      // 每行先算好一份「行情 + 持仓 + 盈亏」，排序和渲染都读它
+      const rows = list.map((q) => {
+        const one = rowOf(q.code, "pos");
+        return { q, f: F(q), one, ...pnlOf(q, one, today) };
+      });
+      const sorted = sortQuotes(rows, sort.key, sort.dir);
+      const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+      // 翻到第 2 页后又删掉几只，页码可能越界 —— 夹一下而不是报错
+      const safePage = Math.min(page, pageCount - 1);
+      /**
+       * 编辑中的那一行必须留在视野里。
+       *
+       * 否则改到一半点一下表头排序，那一行可能被排到别的页去，
+       * 「保存 / 取消」跟着一起消失，草稿还在内存里却没有任何入口能提交，
+       * 用户只能刷新页面、白填一遍。
+       */
+      const editIdx = editingCode ? sorted.findIndex((it) => it.q.code === editingCode) : -1;
+      const viewPage = editIdx >= 0 ? Math.floor(editIdx / PAGE_SIZE) : safePage;
+      const view = sorted.slice(viewPage * PAGE_SIZE, viewPage * PAGE_SIZE + PAGE_SIZE);
+
+      /** 点表头：同一列再点一次换方向；换列时按常识给初始方向 */
+      const toggleSort = (key) => {
+        setSort((s) => (s.key === key
+          ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+          : { key, dir: key === "name" ? "asc" : "desc" }));
+        // 换了排序就回第一页：第 2 页原来装的是「第 11-20 只」，
+        // 排完序它装的是另一批票，而用户此刻想看的是排在最前面的那几只
+        setPage(0);
+      };
+
+      /** 表头单元格。key 为空表示这列不参与排序（比如行尾的按钮列） */
+      const th = (key, label, cls) => h("th", { key: key ?? label, className: cls },
+        key
+          ? h("button", {
+            className: "skd-th-sort", type: "button", "data-key": key,
+            "data-dir": sort.key === key ? sort.dir : "",
+            title: T("hintSort"), onClick: () => toggleSort(key),
+          }, label, sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : null)
+          : label);
+
+      return h("div", { className: "skd-tblwrap" },
+        h("table", { className: "skd-tbl skd-htbl" },
+          h("thead", null, h("tr", null,
+            // 表头是「名称」不是「自选」：这一列列的是股票名字，而卡片本身已经叫自选了，
+            // 再写一遍自选只是把标题重复进表头，占地方还答非所问。
+            th("name", T("stock")),
+            // 持有标记紧挨名称：它是这一行的属性，不是行情指标，别混进后面涨跌那一片
+            watch ? th("held", T("held"), "skd-heldcol") : null,
+            th("price", T("price")),
+            th("changePct", T("pct")),
+            th("turnover", T("turnover")),
+            th("amount", T("amount")),
+            // 以下五列只在自选表里出现（持仓 / 监控都属于自选股的属性）
+            watch ? th("cost", T("cost")) : null,
+            watch ? th("shares", T("shares")) : null,
+            watch ? th("todayPnl", T("todayPnl")) : null,
+            watch ? th("holdPnl", T("holdPnl")) : null,
+            // 提醒两列不参与排序：按「低价提醒」排出来的顺序对你没有任何用处
+            watch ? h("th", null, T("alertLow")) : null,
+            watch ? h("th", null, T("alertHigh")) : null,
+            watch ? h("th", { className: "skd-actcol" }, "") : null)),
+          h("tbody", null, ...view.map((it) => {
+            const { q, f, one } = it;
+            return h("tr", { key: q.code },
           // 名称做成按钮而不是给整行挂 onClick：整行可点会把「点哪都能展开」这件事做进去，
           // 但键盘用户永远聚焦不到它
           h("td", null, h("button", {
@@ -1804,9 +1962,8 @@ window.__ModuleLoader__.load({
             q.kind ? h("span", { className: "skd-tag" }, q.kind) : null,
             h("span", { className: "skd-code" }, q.code),
             // 行情日期不是今天 → 明确标出来，别让昨天的涨幅冒充今天的盈亏
-            (() => { const qd = quoteDate(F(q)); 
-              return qd !== null && qd !== today
-                ? h("span", { className: "skd-tag skd-tag-stale", title: T("hintStale") }, T("staleTag")) : null; })())),
+            it.stale
+              ? h("span", { className: "skd-tag skd-tag-stale", title: T("hintStale") }, T("staleTag")) : null)),
           // 持有标记列。空着不画东西，让 td:empty::after 补「—」，
           // 免得「未持有」和「没填过」在视觉上一样。
           watch ? h("td", { key: "held", className: "skd-heldcol" },
@@ -1814,37 +1971,20 @@ window.__ModuleLoader__.load({
               ? h("label", { className: "skd-heldedit", title: T("hintHeld") },
                 h("input", {
                   type: "checkbox",
-                  checked: rowOf(q.code, "pos").held === true,
+                  checked: one.held === true,
                   onChange: (e) => onChange?.("pos", q.code, "held", e.target.checked),
                 }))
-              : (rowOf(q.code, "pos").held === true
+              : (one.held === true
                 ? h("span", { className: "skd-tag skd-tag-held", title: T("hintHeld") }, T("heldTag"))
                 : null)) : null,
-          h("td", { className: `skd-num ${dir(F(q).changePct)}` }, fieldText("price", F(q).price, q)),
-          h("td", { className: `skd-num ${dir(F(q).changePct)}` }, fieldText("changePct", F(q).changePct, q)),
-          h("td", { className: "skd-num" }, nOr(F(q).turnover) === null ? "—" : `${num(F(q).turnover)}%`),
-          h("td", { className: "skd-num" }, fieldText("amount", F(q).amount, q)),
+          h("td", { className: `skd-num ${dir(f.changePct)}` }, fieldText("price", f.price, q)),
+          h("td", { className: `skd-num ${dir(f.changePct)}` }, fieldText("changePct", f.changePct, q)),
+          h("td", { className: "skd-num" }, nOr(f.turnover) === null ? "—" : `${num(f.turnover)}%`),
+          h("td", { className: "skd-num" }, fieldText("amount", f.amount, q)),
           ...(watch ? (() => {
-            const f = F(q);
-            const price = nOr(f.price);
-            const prev = nOr(f.prevClose);
-            const one = rowOf(q.code, "pos");
-            const cost = nOr(one.cost);
-            const shares = nOr(one.shares);
-            // 行情不是今天的 → 今日盈亏无从谈起，显示「—」并在名称旁标「昨收」。
-            // 不这么做的话，未开盘时会把昨天收盘的涨幅当成今天的盈亏继续显示，
-            // 用户看到的就是「新的一天了怎么还没清零」。
-            const qd = quoteDate(f);
-            const stale = qd !== null && qd !== today;
-            // 今日买入的仓位用成本价当基准，否则才用昨收。
-            // todayBuy 既可能是 true（旧数据），也可能是日期字符串（新数据）；
-            // 是日期时只有等于行情所属日期才算「当日买入」—— 否则昨天勾的今天还生效，
-            // 今日盈亏就退化成了持仓盈亏。
-            const bought = isBoughtToday(one, qd);
-            const base = bought ? cost : prev;
-            const todayPnl = stale || shares === null || price === null || base === null
-              ? null : (price - base) * shares;
-            const holdPnl = shares !== null && price !== null && cost !== null ? (price - cost) * shares : null;
+            // 盈亏怎么算的见 pnlOf：这里只取结果，不再算第二遍 ——
+            // 表里显示的数与排序用的键出自同一个函数，点表头排出来的顺序才和眼睛看到的对得上
+            const { bought, todayPnl, holdPnl } = it;
             const cls = (v) => "skd-num " + (v === null ? "" : v > 0 ? "skd-up" : v < 0 ? "skd-down" : "");
             return [
               h("td", { key: "cost" }, editingCode === q.code
@@ -1889,8 +2029,25 @@ window.__ModuleLoader__.load({
                       onClick: () => onRemove?.(q.code),
                     }, T("remove")))),
             ];
-          })() : [watch ? null : null].filter(Boolean)),
-          watch ? null : null))));
+          })() : []));
+          }))),
+        // 分页：10 条一页。只在一页装不下时出现，不占无谓的版面
+        sorted.length > PAGE_SIZE
+          ? h("div", { className: "skd-pager" },
+            h("button", {
+              className: "skd-btn", "data-xs": "1", type: "button",
+              // 编辑态下翻页按钮一律禁用：页面被钉在编辑行所在那一页，
+              // 点了也不会动 —— 那种「点了没反应」的按钮比禁用的更让人困惑
+              disabled: editingCode !== null || viewPage <= 0,
+              onClick: () => setPage(Math.max(0, viewPage - 1)),
+            }, T("pagePrev")),
+            h("span", { className: "skd-meta" }, `${viewPage + 1} / ${pageCount} ${T("pages")}`),
+            h("button", {
+              className: "skd-btn", "data-xs": "1", type: "button",
+              disabled: editingCode !== null || viewPage + 1 >= pageCount,
+              onClick: () => setPage(viewPage + 1),
+            }, T("pageNext")))
+          : null);
     }
 
     /** 腾讯的 time 是 "20261019142003" 这种紧凑串，直接显示不好读 */
@@ -3490,6 +3647,9 @@ window.__ModuleLoader__.load({
       apply,
       __test: {
         QuoteTable, QuoteDetail, IndexStrip, fieldText, stampText,
+        // 自选表的排序与盈亏：三者都是纯函数，能直接喂数据断言，
+        // 不必挂载组件 —— 「排序和显示用的是同一套算法」这条才验得实。
+        pnlOf, isBoughtToday, sortQuotes, sortVal, SORT_KEYS, PAGE_SIZE,
         positionRows, rangeRatio, orderRatio, cashText, money,
         MonitorBar, DeskBoundary, DeskSafe, applyDraftEdit,
         // 逐行编辑的两个纯函数：草稿只装一行、保存按行合并。
