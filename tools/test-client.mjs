@@ -2196,6 +2196,41 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
     info: { indexCatalog: [] }, save: async () => {}, onMigrate: () => {} }) ?? null).join('|')), '');
 }
 
+// ---- 自选表的默认排序：持有的在前 -------------------------------------------
+// 打开表的时候用户第一眼要的是自己买了的那几只，不是「加进自选的先后顺序」。
+// 可判定的三条：持有行在不在最前、未持有的行是否还按原来的自选顺序、
+// 表头有没有如实标出「当前正按持有排序」。
+{
+  if (globalThis.__mountLive) {
+    const tKey = `${todayKey().replace(/-/g, '')}101500`;
+    const mkRow = (i, held) => ({
+      code: `sz${String(i).padStart(6, '0')}`, name: `默认${String(i).padStart(2, '0')}`,
+      kind: 'stock', time: tKey,
+      fields: { price: 10, prevClose: 10, changePct: 0 },
+    });
+    const rows = [mkRow(1), mkRow(2), mkRow(3), mkRow(4)];
+    const m = await globalThis.__mountLive(entry, 'QuoteTable', {
+      list: rows, watch: true, onPick: () => {},
+      // 只有第 3 只是持有的
+      config: { positions: { sz000003: { held: true } }, alerts: {} },
+      editingCode: null, draft: null,
+    });
+    const names = () => m.all((n) => n.props?.className === 'skd-name skd-name-btn')
+      .map((n) => texts(n).join(''));
+    check('默认把持有的那只排到第一行', (names()[0] ?? '').includes('默认03'), names().join('|'));
+    check('未持有的行保持原来的自选顺序，没有被打乱',
+      names().map((s) => s.slice(0, 4)).join('|') === '默认03|默认01|默认02|默认04', names().join('|'));
+    const thHeld = m.all((n) => n.props?.['data-key'] === 'held')[0];
+    check('持有列表头默认就标着 ▼（表的顺序确实是由它决定的）',
+      Boolean(thHeld) && texts(thHeld).join('').includes('▼'), texts(thHeld ?? {}).join(''));
+    await m.click(thHeld);
+    check('点一下持有表头：翻成未持有的在前', (names()[0] ?? '').includes('默认01'), names().join('|'));
+    check('翻面后持有的那只排在最后', (names()[3] ?? '').includes('默认03'), names().join('|'));
+  } else {
+    console.log('  SKIP  默认按持有排序的用例（没有 mountLive 运行时）');
+  }
+}
+
 // ---- 自选表的均价三列 -------------------------------------------------------
 // 日均价来自实时报价（avgPrice），周/月要按日 K 聚合后再补进来。可判定的四条：
 // 值取对了没有、ETF 保不保留 3 位小数、没数据时是不是「—」、能不能按它排序。

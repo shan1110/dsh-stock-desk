@@ -1927,7 +1927,12 @@ window.__ModuleLoader__.load({
        * 少调用两个钩子，React 直接抛 rendered fewer hooks than expected，
        * 表现是整张表消失，而错误信息里不会出现「表」这个字。
        */
-      const [sort, setSort] = React.useState({ key: null, dir: "desc" });
+      /**
+       * 默认按「持有」排序：打开自选表第一眼要看到的是自己买了的那几只，
+       * 而不是「当初加进自选的先后顺序」。未持有的行保持自选顺序（sort 稳定），
+       * 所以这个默认值不会把表打乱成随机次序。
+       */
+      const [sort, setSort] = React.useState({ key: "held", dir: "desc" });
       const [page, setPage] = React.useState(0);
       /**
        * 周/月均价是后补的：日均价在实时报价里现成，这两个得按日 K 算，
