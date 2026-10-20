@@ -3520,7 +3520,9 @@ window.__ModuleLoader__.load({
         title: data?.at ? `${T("snapshot")} ${hhmmss(data.at)}` : "",
       },
       h("span", { className: "skd-pill-n" }, cat?.name ?? "—"),
-      h("span", { className: `skd-up`, style: { fontWeight: 600 } }, q ? num(F(q).price) : "—"),
+      // 价格也跟着涨跌上色：写死红色时，跌的指数在药丸里是个红数字，
+      // 一眼看过去就是「跌了却在涨」，和旁边绿色的百分比自相矛盾
+      h("span", { className: `skd-num ${dir(F(q).changePct)}`, style: { fontWeight: 600 } }, q ? num(F(q).price) : "—"),
       h("span", { className: dir(F(q).changePct) }, q ? pct(F(q).changePct) : "—"),
       h("span", { className: "skd-pill-n" }, `↑${up} ↓${dn}`),
       h("button", {
@@ -3650,6 +3652,8 @@ window.__ModuleLoader__.load({
         // 自选表的排序与盈亏：三者都是纯函数，能直接喂数据断言，
         // 不必挂载组件 —— 「排序和显示用的是同一套算法」这条才验得实。
         pnlOf, isBoughtToday, sortQuotes, sortVal, SORT_KEYS, PAGE_SIZE,
+        // 涨跌配色只有一个入口：颜色错必然是某个元素绕过了它
+        dir,
         positionRows, rangeRatio, orderRatio, cashText, money,
         MonitorBar, DeskBoundary, DeskSafe, applyDraftEdit,
         // 逐行编辑的两个纯函数：草稿只装一行、保存按行合并。

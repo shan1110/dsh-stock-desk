@@ -240,7 +240,7 @@ check('代码池文件存在', readFileSync(join(ROOT, 'data', 'universe.json'),
 // ---- 明细视图：把 §8 的验尸标准变成机器判定 ------------------------------------
 const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, QuoteDetail, QuoteTable, IndexStrip, fieldText, positionRows, rangeRatio, orderRatio, cashText, money, Holdings, MonitorBar, DeskBoundary,
   rowEditDraft, mergeEditDraft,
-  pnlOf, sortQuotes, PAGE_SIZE,
+  pnlOf, sortQuotes, PAGE_SIZE, dir,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
   desk, DeskPage, DeskButton, Pill, SettingsTab } = mod.__test ?? {};
@@ -2116,6 +2116,22 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
     /\.skd-input,\.skd-select\{[^}]*box-sizing:border-box/.test(clientSrc), '');
   check('搜索框仍按容器宽度铺满（width:100%）',
     /className: "skd-input", style: \{ width: "100%" \}/.test(clientSrc), '');
+}
+
+// 涨跌配色：跌的指数必须是绿色。
+//
+// 主题令牌是实测的：state-success-primary → rgb(34,197,94) 绿，
+// state-error-primary → rgb(239,68,68) 红；.skd-down 取前者。
+// 所以「跌的显示红色」只可能是渲染代码没走 dir()。药丸里的指数价格曾经写死 skd-up，
+// 于是跌的指数在药丸里是个红数字、旁边的百分比却是绿的 —— 一眼看过去就是自相矛盾。
+{
+  check('药丸里的指数价格跟着涨跌上色，没有写死 skd-up',
+    /className: `skd-num \$\{dir\(F\(q\)\.changePct\)\}`/.test(clientSrc), '');
+  check('指数条的价格与涨跌幅共用同一个方向判断',
+    /skd-idx-v skd-num \$\{dir\(f\.changePct\)\}/.test(clientSrc), '');
+  check('方向判断本身：负数给 skd-down、正数给 skd-up、0 与空值给 skd-flat',
+    dir(-0.06) === 'skd-down' && dir(0.41) === 'skd-up' && dir(0) === 'skd-flat' && dir(null) === 'skd-flat',
+    [dir(-0.06), dir(0.41), dir(0), dir(null)].join(','));
 }
 
 // ---- 结论 -----------------------------------------------------------------
