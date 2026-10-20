@@ -2586,7 +2586,7 @@ if (globalThis.__mountLive) {
         { id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 },
         { id: 'S.lo60', price: 7.95, side: 'support', distPct: -4.33 },
         { id: 'R.ma20', price: 8.38, side: 'resistance', distPct: 0.84 },
-        { id: 'P.cost', price: 8.55, side: 'resistance', distPct: 2.89 },
+        { id: 'P.cost', price: 8.55, side: 'resistance', distPct: 2.89, personal: true },
       ],
     },
   };
@@ -2633,6 +2633,10 @@ if (globalThis.__mountLive) {
         !/S\.(lo|ma|atr|vp)/.test(t3) && !/R\.(hi|ma|vp)/.test(t3) && !t3.includes('P.cost'));
       check('能不能加仓：成本价写成「你的成本价」',
         t3.includes('你的成本价') && t3.includes('8.55'));
+      check('能不能加仓：成本价单独一行，写明「买入价，不是市场位置」',
+        t3.includes('买入价，不是市场位置'));
+      check('能不能加仓：成本价没有被塞进支撑/压力（那一列已取消）',
+        !t3.includes('压力'));
       check('能不能加仓：同一价位的两条依据合并成一行',
         t3.includes('20 交易日最低、60 交易日最低'));
       check('能不能加仓：表头用「样本次数 / 涨的概率 / 随便哪天买」这类白词',

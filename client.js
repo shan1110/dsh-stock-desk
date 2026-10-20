@@ -176,6 +176,7 @@ window.__ModuleLoader__.load({
       lvAtr2: "现价下方 2 个平均波动",
       lvVp: "成交最密集的价位",
       lvCost: "你的成本价",
+      lvCostLine: "你的成本价（买入价，不是市场位置）",
       lvBelow: "现价下方（跌到这里可能有承接）",
       lvAbove: "现价上方（涨到这里可能受阻）",
       anaHold: "持有",
@@ -519,6 +520,7 @@ window.__ModuleLoader__.load({
       lvAtr2: "2 average swings below price",
       lvVp: "densest traded price",
       lvCost: "your cost",
+      lvCostLine: "your cost (entry price, not a market level)",
       lvBelow: "Below price (possible support)",
       lvAbove: "Above price (possible resistance)",
       anaHold: "hold",
@@ -904,6 +906,7 @@ window.__ModuleLoader__.load({
 .skd-ana-lv { display: grid; grid-template-columns: 1fr 56px 56px; align-items: baseline; gap: 6px; font-size: 11px; padding: 1px 0; }
 .skd-ana-lvname { color: var(--dsw-alias-label-primary); }
 .skd-ana-sub2 { font-size: 11px; color: var(--dsw-alias-label-secondary); margin: 4px 0 1px; }
+.skd-ana-cost { margin-top: 6px; padding-top: 4px; border-top: 1px dashed var(--dsw-alias-border-l1); }
 .skd-ana-sub { color: var(--dsw-alias-label-secondary); }
 .skd-ana-why { margin-top: 8px; }
 /* 行尾操作：两个小按钮并排，编辑态换成保存/取消，宽度别跳动 */
@@ -2885,7 +2888,9 @@ window.__ModuleLoader__.load({
         // 同一个价位常被两条依据同时指向（20 日最低与 60 日最低是同一个价），
         // 按价位合并成一行，否则界面上会出现两行一模一样的数字，看着像重复
         const group = (side) => {
-          const same = d.levels.items.filter((x) => x.side === side);
+          // 成本价不进支撑/压力分组：它是你买入的价，不是市场的位置。
+          // 成本在上方时当成「压力」会误导 —— 涨回成本不叫受阻，叫回本
+          const same = d.levels.items.filter((x) => x.side === side && !x.personal);
           const byPrice = new Map();
           for (const x of same) {
             const k = px(x.price);
@@ -2907,7 +2912,16 @@ window.__ModuleLoader__.load({
           sup.length ? h("div", { className: "skd-ana-sub2" }, T("lvBelow")) : null,
           ...sup.map((g, i) => row(g, `s${i}`)),
           res.length ? h("div", { className: "skd-ana-sub2" }, T("lvAbove")) : null,
-          ...res.map((g, i) => row(g, `r${i}`)));
+          ...res.map((g, i) => row(g, `r${i}`)),
+          (() => {
+            const cost = d.levels.items.find((x) => x.personal);
+            if (!cost) return null;
+            return h("div", { className: "skd-ana-lv skd-ana-cost", key: "cost" },
+              h("span", { className: "skd-ana-lvname" }, T("lvCostLine")),
+              h("span", { className: "skd-num" }, px(cost.price)),
+              h("span", { className: `skd-num ${cost.distPct < 0 ? "skd-down" : "skd-up"}` },
+                `${cost.distPct > 0 ? "+" : ""}${cost.distPct.toFixed(2)}%`));
+          })());
       })() : null;
 
       const body = st.loading
