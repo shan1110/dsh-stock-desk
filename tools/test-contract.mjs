@@ -214,9 +214,17 @@ expectData('回显了分页参数（前端据此对齐页码）',
 expectData('带了 session（前端显示交易状态）', typeof B.session?.id === 'string', brief(B.session));
 
 const bd2 = await get('/board?code=881155&kind=thshy&offset=20&size=20');
-check('第 2 页与第 1 页不重叠',
-  (bd2.body?.data?.items ?? []).every((x) => !(B.items ?? []).some((y) => y.code === x.code)),
-  `p1 首 ${B.items?.[0]?.code} p2 首 ${bd2.body?.data?.items?.[0]?.code}`);
+// 不能断言「零重叠」：成分股按涨跌幅排序，而两页是两次请求、各自的快照。
+// 2026-10-20 14:05 实测青岛银行从第 1 页（-1.18%）掉到第 2 页（-1.35%），
+// 边界上漂了 2 只 —— 这是上游排序在动，不是分页坏了。
+// 真正要防的是「offset 被忽略、两页返回同一批」，那种情况重叠 20 只。
+{
+  const p2codes = (bd2.body?.data?.items ?? []).map((x) => x.code);
+  const overlap = p2codes.filter((c) => (B.items ?? []).some((y) => y.code === c));
+  check('第 2 页与第 1 页不是同一批（offset 没被忽略）',
+    p2codes.length > 0 && overlap.length <= 3,
+    `p1 首 ${B.items?.[0]?.code} p2 首 ${bd2.body?.data?.items?.[0]?.code} 重叠 ${overlap.length} 只：${overlap.join(',')}`);
+}
 expectData('第 2 页页码是 2', bd2.body?.data?.page === 2, String(bd2.body?.data?.page));
 
 // 概念板块服务端 10 只/页，宿主必须拉两页拼成 20 —— 这条是本次改造最容易错的地方
@@ -327,6 +335,31 @@ console.log(`\n【4.4b】GET /avg —— 自选表的周/月均价\n`);
   // 空 codes 必须明确报错：静默返回空对象的话，界面只会显示「—」，看不出是参数错了
   const empty = await get('/avg?codes=');
   check('/avg 缺 codes 时明确报错', empty.status !== 200 && Boolean(empty.body?.error),
+    `${empty.status} ${empty.body?.error ?? ''}`);
+}
+
+console.log(`\n【4.4c】GET /sectors —— 自选股的所属板块\n`);
+// 名称后面那行小字来自这里。它断了不会报错，只是全表不再标板块，
+// 所以契约层必须有断言盯着「字段名」和「ETF 落空」这两件事。
+{
+  const r = await get('/sectors?codes=sh600519,sz000002,sh510300');
+  const sec = r.body?.data?.sectors ?? {};
+  check('/sectors 三个代码都有结果',
+    r.status === 200 && Object.keys(sec).length === 3, Object.keys(sec).join(','));
+  // 字段名是 f100/f102/f103 解码后的 industry/area/concepts，改名等于前端整块失效
+  check('/sectors 个股给出 industry 与 area',
+    'industry' in (sec.sh600519 ?? {}) && 'area' in (sec.sh600519 ?? {})
+    && Boolean(sec.sh600519?.industry) && Boolean(sec.sh600519?.area),
+    JSON.stringify(sec.sh600519 ?? null));
+  check('/sectors 的概念是字符串数组',
+    Array.isArray(sec.sz000002?.concepts) && sec.sz000002.concepts.every((s) => typeof s === 'string'),
+    JSON.stringify(sec.sz000002?.concepts ?? null));
+  // ETF 没有行业归属：必须是 null 而不是 "-" 或空字符串，否则界面会画出一个小标签
+  check('/sectors 的 ETF 没有行业，且是 null 不是 "-"',
+    sec.sh510300?.industry === null && Array.isArray(sec.sh510300.concepts)
+    && sec.sh510300.concepts.length === 0, JSON.stringify(sec.sh510300 ?? null));
+  const empty = await get('/sectors?codes=');
+  check('/sectors 缺 codes 时明确报错', empty.status !== 200 && Boolean(empty.body?.error),
     `${empty.status} ${empty.body?.error ?? ''}`);
 }
 
