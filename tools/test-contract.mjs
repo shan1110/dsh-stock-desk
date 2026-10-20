@@ -327,6 +327,35 @@ for (const code of ['sh000001', 'sz399006', 'sh000688']) {
   check('周线也能取到 250 根以上（覆盖十年股性）', wn > 250, `实得 ${wn} 根`);
 }
 
+console.log(`\n【4.4a2】GET /analysis —— 「能不能加仓」块\n`);
+// 界面那块与 agent 工具 stock_analysis 共用 lib/analysis.js，所以这里验的是
+// 「两条路拿到的是同一份结构」——分开写两份迟早出现互相矛盾的结论。
+{
+  const a = await get('/analysis?code=sz002739');
+  const d = a.body?.data;
+  check('/analysis 返回 ok', a.status === 200 && a.body?.ok === true, `status=${a.status}`);
+  check('/analysis 带四条判定且都是布尔',
+    ['edge', 'pos', 'trigger', 'ratio'].every((k) => typeof d?.plan?.four?.[k] === 'boolean'),
+    JSON.stringify(d?.plan?.four));
+  check('/analysis 的加仓位要么是数字要么是 null（不许空字符串）',
+    d?.plan?.addZone === null || typeof d?.plan?.addZone === 'number', String(d?.plan?.addZone));
+  check('/analysis 没通过时写明卡在哪几条',
+    !d?.plan?.ok ? Array.isArray(d?.plan?.addWhy) && d.plan.addWhy.length > 0 : true,
+    JSON.stringify(d?.plan?.addWhy));
+  check('/analysis 带历史频率全表与基准',
+    Array.isArray(d?.rows) && d.rows.length > 0 && Array.isArray(d?.baselines) && d.baselines.length > 0,
+    `${d?.rows?.length} 行 / ${d?.baselines?.length} 个基准`);
+  check('/analysis 每行都带区间或明确 null',
+    (d?.rows ?? []).every((r) => r.ci === null || (Array.isArray(r.ci) && r.ci[0] <= r.ci[1])));
+  check('/analysis 不把明细数组塞进 payload（界面用不上，白占体积）',
+    (d?.rows ?? []).every((r) => r.returns === undefined && r.phases === undefined));
+  check('/analysis 带位置表且每条都有编号',
+    Array.isArray(d?.levels?.items) && d.levels.items.length > 0 && d.levels.items.every((x) => typeof x.id === 'string'));
+  check('/analysis 缺 code 时 4xx 且给出原因',
+    (await get('/analysis')).status >= 400);
+  const bad = await get('/analysis?code=zzzzzz');
+  check('/analysis 未知代码 4xx 而不是静默返回空表', bad.status >= 400, `status=${bad.status}`);
+}
 console.log(`\n【4.4b】GET /avg —— 自选表的周/月均价\n`);
 // 自选表把换手、成交额换成了三条均价。日均价走实时报价的 avgPrice，
 // 周/月走这个接口；它断了的话界面上那两列永远是「—」，而且不会有任何报错。

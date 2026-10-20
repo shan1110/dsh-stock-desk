@@ -2548,6 +2548,50 @@ if (mountPill && PillView) {
   console.log('  SKIP  药丸操作栏的用例（没有 mountLive 运行时）');
 }
 
+// ---- 「能不能加仓」块：默认折叠、展开才有表、结论跟着 plan 走 -------------------
+// 这一块是唯一同时读四个条件、又只在界面上出现的地方，所以「默认是否展开」
+// 和「没通过时显示哪几个字」都要机器判定 —— 肉眼看两遍容易漏。
+if (globalThis.__mountLive) {
+  const ANA = {
+    plan: {
+      ok: false,
+      addZone: null,
+      stop: null,
+      target: null,
+      addWhy: ['edge'],
+      four: { edge: false, pos: true, trigger: true, ratio: true },
+    },
+    primary: 'C2',
+    primaryPeriod: 'day',
+    rows: [
+      { id: 'C1.1d', cond: 'C1', upPct: 64, n: 42, ci: [49, 77], base: 47, judge: 'pos' },
+      { id: 'C2.1d', cond: 'C2', upPct: 39, n: 83, ci: [29, 49], base: 47, judge: 'none' },
+      { id: 'C3.10d', cond: 'C3', upPct: 31, n: 29, ci: [17, 49], base: 43, judge: 'neg' },
+    ],
+    levels: { items: [{ id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 }] },
+  };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, data: ANA }) });
+  try {
+    const folded = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: false });
+    const foldedText = JSON.stringify(folded.tree);
+    check('能不能加仓：折叠时只给结论，不出表', !foldedText.includes('历史形态频率'), '');
+    check('能不能加仓：四条都画成 chip', ['形态边缘', '位置', '触发', '盈亏比'].every((s) => foldedText.includes(s)));
+    check('能不能加仓：没通过时说清卡在哪一条', /卡在.*形态边缘/.test(foldedText));
+    check('能不能加仓：没有加仓位时明说，而不是留空', foldedText.includes('当前没有符合条件的加仓位'));
+
+    const open = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: true });
+    const openText = JSON.stringify(open.tree);
+    check('能不能加仓：展开后有历史频率表', openText.includes('历史形态频率'));
+    check('能不能加仓：表里把有方向的格子都列出来',
+      openText.includes('C1.1d') && openText.includes('C2.1d') && openText.includes('C3.10d'));
+    check('能不能加仓：表里带区间与样本量', openText.includes('49~77%') && openText.includes('83'));
+    check('能不能加仓：展开后有位置表与编号', openText.includes('S.lo20'));
+    check('能不能加仓：展开时写明历史频率不等于未来概率', openText.includes('历史频率不等于未来概率'));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
 // ---- 结论 -----------------------------------------------------------------
 console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);
 process.exitCode = fail === 0 ? 0 : 1;

@@ -149,6 +149,43 @@ window.__ModuleLoader__.load({
       saveEdit: "保存",
       cancelEdit: "取消",
       holdingsEditing: "这一行正在编辑：改完点「保存」才生效，点「取消」全部丢弃。",
+      analyze: "分析",
+      anaTitle: "能不能加仓",
+      anaLoading: "正在算…",
+      anaFail: "算不出来",
+      anaShort: "历史太短，算不出形态频率（至少要 30 根日线）",
+      anaEdge: "形态边缘",
+      anaPos: "位置",
+      anaTrigger: "触发",
+      anaRatio: "盈亏比",
+      anaYes: "符合",
+      anaNo: "不符合",
+      anaHit: "今天命中",
+      anaNoHit: "今天没有命中任何形态",
+      anaStuck: "卡在",
+      anaPass: "四条都成立",
+      anaAddZone: "加仓位",
+      anaStop: "止损",
+      anaTarget: "止盈",
+      anaNoZone: "当前没有符合条件的加仓位",
+      anaExpand: "展开全部",
+      anaCollapse: "收起",
+      anaHist: "历史形态频率",
+      anaLevels: "位置表",
+      anaWin: "胜率",
+      anaCI: "区间",
+      anaNTxt: "n",
+      anaBaseShort: "基准",
+      anaPos_: "正边缘",
+      anaNeg: "负边缘",
+      anaNeutral: "无信号",
+      anaTiny: "样本不足",
+      anaWhy: "历史频率不等于未来概率；区间跨过基准的格子等于没有信号。",
+      hintAna: "四条同时成立才给加仓位：① 这个形态在这只票历史上显著好于基准 ② 支撑离现价够远（≥1 个 ATR）③ 有触发而不是挂死单 ④ 盈亏比 ≥ 2:1。任一条不成立就不给位置 —— 位置对、形态错是最常见的亏钱路径。",
+      c1Name: "放量突破",
+      c2Name: "缩量回踩",
+      c3Name: "跌破均线",
+      c4Name: "超跌",
       crashTitle: "行情台渲染出错",
       crashHint: "把这段报错发给开发者即可定位。行情数据本身没问题，是界面这一层挂了。",
 
@@ -385,6 +422,43 @@ window.__ModuleLoader__.load({
       saveEdit: "Save",
       cancelEdit: "Cancel",
       holdingsEditing: "Editing this row: nothing is saved until you press Save.",
+      analyze: "Analyze",
+      anaTitle: "Can I add here",
+      anaLoading: "Calculating…",
+      anaFail: "Cannot compute",
+      anaShort: "History too short for pattern frequencies (needs 30 daily bars)",
+      anaEdge: "Edge",
+      anaPos: "Level",
+      anaTrigger: "Trigger",
+      anaRatio: "R:R",
+      anaYes: "yes",
+      anaNo: "no",
+      anaHit: "Hit today",
+      anaNoHit: "no pattern hit today",
+      anaStuck: "blocked by",
+      anaPass: "all four pass",
+      anaAddZone: "Add zone",
+      anaStop: "Stop",
+      anaTarget: "Target",
+      anaNoZone: "No add zone qualifies now",
+      anaExpand: "Show all",
+      anaCollapse: "Collapse",
+      anaHist: "Pattern frequencies",
+      anaLevels: "Levels",
+      anaWin: "win",
+      anaCI: "95% CI",
+      anaNTxt: "n",
+      anaBaseShort: "base",
+      anaPos_: "positive",
+      anaNeg: "negative",
+      anaNeutral: "no signal",
+      anaTiny: "too few",
+      anaWhy: "Frequency is not probability; a CI that straddles the base rate is no signal.",
+      hintAna: "All four must hold: edge better than base, level at least 1 ATR away, a trigger, and R:R >= 2:1. If any fails, no zone is returned.",
+      c1Name: "Breakout",
+      c2Name: "Pullback",
+      c3Name: "Break below MA",
+      c4Name: "Oversold",
       crashTitle: "Quote desk render error",
       crashHint: "Send this message to the developer. The data is fine; the UI layer failed.",
 
@@ -661,6 +735,27 @@ window.__ModuleLoader__.load({
    填满再配白字正是之前「点上去按钮变全白」那个坑 */
 .skd-tag-held{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .skd-heldedit{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+/* 「能不能加仓」块：默认只占两行结论，展开后才长成表。
+   右栏最窄时约 300px，所以表格不给固定列宽，靠内容自己挤 */
+.skd-ana { margin-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); padding-top: 10px; }
+.skd-ana-hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.skd-ana-t { font-weight: 600; }
+.skd-ana-verdict { font-size: 12px; color: var(--dsw-alias-state-error-primary); }
+.skd-ana-verdict.skd-ana-pass { color: var(--dsw-alias-state-success-primary); }
+.skd-ana-four { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.skd-ana-chip { font-size: 12px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--dsw-alias-border-l1); }
+.skd-ana-yes { color: var(--dsw-alias-state-success-primary); border-color: currentColor; }
+.skd-ana-no { color: var(--dsw-alias-state-error-primary); border-color: currentColor; }
+.skd-ana-line { font-size: 12px; color: var(--dsw-alias-label-secondary); margin-top: 6px; }
+.skd-ana-sec { margin-top: 10px; }
+.skd-ana-tbl { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.skd-ana-tbl th { text-align: right; font-weight: 500; color: var(--dsw-alias-label-secondary); padding: 2px 4px; }
+.skd-ana-tbl th:first-child { text-align: left; }
+.skd-ana-tbl td { text-align: right; padding: 2px 4px; border-top: 1px solid var(--dsw-alias-border-l1); }
+.skd-ana-tbl td:first-child { text-align: left; }
+.skd-ana-lv { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 0; }
+.skd-ana-sub { color: var(--dsw-alias-label-secondary); }
+.skd-ana-why { margin-top: 8px; }
 /* 行尾操作：两个小按钮并排，编辑态换成保存/取消，宽度别跳动 */
 .skd-htbl .skd-actcol{white-space:nowrap;text-align:right;padding:2px 4px}
 .skd-actbtns{display:inline-flex;align-items:center;gap:4px;justify-content:flex-end}
@@ -1999,7 +2094,7 @@ window.__ModuleLoader__.load({
       });
     }
 
-    function QuoteTable({ list, watch, onRemove, onPick, config, editingCode, draft, onChange,
+    function QuoteTable({ list, watch, onRemove, onPick, onAnalyze, config, editingCode, draft, onChange,
       onEdit, onSave, onCancel }) {
       /**
        * 排序与翻页都放组件内：QuoteTable 只有自选表一个调用点，
@@ -2225,6 +2320,12 @@ window.__ModuleLoader__.load({
                       onClick: () => onCancel?.(q.code),
                     }, T("cancelEdit")))
                   : h("span", { className: "skd-actbtns" },
+                    // 「分析」排在编辑左边：它是只读操作，放在最容易误点的位置不合适
+                    h("button", {
+                      className: "skd-btn", "data-xs": "1", type: "button",
+                      "data-ana": q.code,
+                      onClick: () => onAnalyze?.(q.code),
+                    }, T("analyze")),
                     h("button", {
                       className: "skd-btn", "data-xs": "1", type: "button",
                       onClick: () => onEdit?.(q.code),
@@ -2407,7 +2508,115 @@ window.__ModuleLoader__.load({
       asks: () => T("hintAsks"),
     };
 
-    function QuoteDetail({ q, onClose }) {
+    /**
+     * 「能不能加仓」：四条件 + 历史频率 + 位置表。
+     *
+     * 为什么挂在详情面板底部而不是另开一个抽屉：点一行就能看到，不用在两块视图之间跳。
+     * 但整块有 40 多行，窄栏放不下，所以默认只露结论那两行，展开才给两张表。
+     *
+     * autoOpen 为真时直接展开 —— 行尾那个「分析」按钮存在的唯一理由就是这个：
+     * 点「分析」和点行的区别只有一处，这块要不要先展开。
+     */
+    function CanAdd({ code, autoOpen }) {
+      const [st, setSt] = React.useState({ loading: true, err: null, data: null });
+      const [open, setOpen] = React.useState(Boolean(autoOpen));
+      React.useEffect(() => {
+        if (!code) return undefined;
+        let alive = true;
+        setSt({ loading: true, err: null, data: null });
+        api(`/analysis?code=${encodeURIComponent(code)}`)
+          .then((d) => { if (alive) setSt({ loading: false, err: null, data: d }); })
+          .catch((e) => { if (alive) setSt({ loading: false, err: e?.message ?? String(e), data: null }); });
+        return () => { alive = false; };
+      }, [code]);
+      // 换一只股票（或从行尾点「分析」进来）时，重置展开状态
+      React.useEffect(() => { setOpen(Boolean(autoOpen)); }, [autoOpen, code]);
+
+      const d = st.data;
+      // 每个键单独写死 T("…")：自检静态扫的是 T("字面量")，写成查表会让词条被误判成「没用上」
+      const whyLabel = (k) => {
+        if (k === "edge") return T("anaEdge");
+        if (k === "pos") return T("anaPos");
+        if (k === "trigger") return T("anaTrigger");
+        return T("anaRatio");
+      };
+      const ok = d?.plan?.ok;
+      const verdict = !d ? null
+        : ok
+          ? h("span", { className: "skd-ana-verdict skd-ana-pass" }, T("anaPass"))
+          : h("span", { className: "skd-ana-verdict" }, `${T("anaStuck")} ${(d.plan?.addWhy ?? []).map(whyLabel).join("、")}`);
+
+      const chip = (label, passed, key) => h("span", {
+        key,
+        className: `skd-ana-chip ${passed ? "skd-ana-yes" : "skd-ana-no"}`,
+      }, `${label} ${passed ? T("anaYes") : T("anaNo")}${passed ? " ✓" : " ✗"}`);
+
+      const four = d ? h("div", { className: "skd-ana-four" },
+        chip(T("anaEdge"), d.plan.four.edge, "edge"),
+        chip(T("anaPos"), d.plan.four.pos, "pos"),
+        chip(T("anaTrigger"), d.plan.four.trigger, "trigger"),
+        chip(T("anaRatio"), d.plan.four.ratio, "ratio")) : null;
+
+      const hitLine = d ? h("div", { className: "skd-ana-line" },
+        `${T("anaHit")}：${d.primary ? `${COND_NAME(d.primary)}（${d.primaryPeriod === "week" ? T("kWeek") : T("kDay")}）` : T("anaNoHit")}`) : null;
+
+      const zoneLine = d ? h("div", { className: "skd-ana-line" },
+        ok
+          ? `${T("anaAddZone")} ${num(d.plan.addZone)}　${T("anaStop")} ${num(d.plan.stop)}　${T("anaTarget")} ${num(d.plan.target)}`
+          : T("anaNoZone")) : null;
+
+      // 只列「有方向的」和「今天命中的形态」：全表 40 行塞进右栏没人看，
+      // 而这两类正好回答两个问题 —— 有没有优势、今天这个形态有没有优势。
+      const rows = d ? d.rows.filter((r) => r.judge === "pos" || r.judge === "neg" || r.cond === d.primary) : [];
+      const judgeText = (j) => {
+        if (j === "pos") return T("anaPos_");
+        if (j === "neg") return T("anaNeg");
+        if (j === "none") return T("anaNeutral");
+        return T("anaTiny");
+      };
+
+      const hist = d && open ? h("div", { className: "skd-ana-sec" },
+        h("div", { className: "skd-d-gt" }, T("anaHist")),
+        h("table", { className: "skd-ana-tbl" },
+          h("thead", null, h("tr", null,
+            h("th", null, "id"), h("th", null, T("anaWin")), h("th", null, T("anaNTxt")),
+            h("th", null, T("anaCI")), h("th", null, T("anaBaseShort")), h("th", null, ""))),
+          h("tbody", null, ...rows.map((r) => h("tr", { key: r.id },
+            h("td", null, r.id),
+            h("td", null, Number.isFinite(r.upPct) ? `${Math.round(r.upPct)}%` : "—"),
+            h("td", null, Number.isFinite(r.n) ? String(r.n) : "—"),
+            h("td", null, r.ci ? `${Math.round(r.ci[0])}~${Math.round(r.ci[1])}%` : "—"),
+            h("td", null, Number.isFinite(r.base) ? `${Math.round(r.base)}%` : "—"),
+            h("td", { className: r.judge === "pos" ? "skd-up" : r.judge === "neg" ? "skd-down" : "" }, judgeText(r.judge))))))) : null;
+
+      const lv = d && open ? h("div", { className: "skd-ana-sec" },
+        h("div", { className: "skd-d-gt" }, T("anaLevels")),
+        ...d.levels.items.map((x) => h("div", { className: "skd-ana-lv", key: x.id },
+          h("span", { className: "skd-code" }, x.id),
+          h("span", { className: "skd-num" }, num(x.price)),
+          h("span", { className: "skd-ana-sub" }, x.side === "support" ? T("anaPos") : T("anaTarget")),
+          h("span", { className: `skd-num ${x.distPct < 0 ? "skd-down" : "skd-up"}` }, `${x.distPct > 0 ? "+" : ""}${x.distPct.toFixed(2)}%`)))) : null;
+
+      const body = st.loading
+        ? h("div", { className: "skd-meta" }, T("anaLoading"))
+        : st.err
+          ? h("div", { className: "skd-meta" }, `${T("anaFail")}：${st.err}`)
+          : !d
+            ? h("div", { className: "skd-meta" }, T("anaShort"))
+            : h("div", null, four, hitLine, zoneLine, hist, lv,
+              open ? h("div", { className: "skd-meta skd-ana-why" }, T("anaWhy")) : null);
+
+      return h("div", { className: "skd-ana" },
+        h("div", { className: "skd-ana-hd" },
+          h("span", { className: "skd-ana-t" }, T("anaTitle"), h(Hint, { text: T("hintAna") })),
+          verdict,
+          d ? h("button", {
+            className: "skd-btn", "data-xs": "1", type: "button",
+            onClick: () => setOpen((v) => !v),
+          }, open ? T("anaCollapse") : T("anaExpand")) : null),
+        body);
+    }
+    function QuoteDetail({ q, onClose, analysisAutoOpen }) {
       if (!q) return null;
       const f = F(q);
 
@@ -2470,7 +2679,9 @@ window.__ModuleLoader__.load({
         position,
         board,
         // 图放在最后：先给数字（一眼看完），再给走势（要看细节时往下看）
-        h(Kline, { code: q.code }));
+        h(Kline, { code: q.code }),
+        // 分析再去图之后：它要 40 多行，放在最上面会把「现价多少」挤出第一屏
+        h(CanAdd, { code: q.code, autoOpen: analysisAutoOpen }));
     }
 
     /**
@@ -2478,6 +2689,15 @@ window.__ModuleLoader__.load({
      * 词条写成 thunk 而不是 `"kDay"` 这样的字符串键：自检里那条「声明了却用不上」的规则
      * 是静态扫 T("字面量") 的，写成字符串键它看不见，会误报成多余词条。
      */
+    /** 四个形态的名字。写成函数而不是常量表：T 的结果要等 locale 就绪，常量表会在加载时就固定住 */
+    const COND_NAME = (id) => {
+      if (id === "C1") return T("c1Name");
+      if (id === "C2") return T("c2Name");
+      if (id === "C3") return T("c3Name");
+      if (id === "C4") return T("c4Name");
+      return id;
+    };
+
     const KLINE_PERIODS = [
       ["min", () => T("kMin")], ["day", () => T("kDay")], ["week", () => T("kWeek")], ["month", () => T("kMonth")],
     ];
@@ -3311,6 +3531,13 @@ window.__ModuleLoader__.load({
        * 写成普通函数每次渲染重建，反而天然拿到最新的 parts。
        */
       const [picked, setPicked] = React.useState(null);
+      /**
+       * 行尾「分析」点了哪一只。
+       *
+       * 只用来决定详情面板底部那块要不要默认展开；点行本身不设它，
+       * 所以「随手点一只看行情」不会被一整块分析表顶下去。
+       */
+      const [focusAna, setFocusAna] = React.useState(null);
       // 指数条里展开了哪一只。指数不写进自选，所以它跟 sel/picked 是两条独立的展开路径
       const [idxPeek, setIdxPeek] = React.useState(null);
       const pickAny = async (code) => {
@@ -3622,7 +3849,8 @@ window.__ModuleLoader__.load({
             h("div", { className: "skd-drill-body", style: { paddingTop: 0 } },
               splitView(selQ ? h(QuoteDetail, {
                 q: selQ,
-                onClose: () => { setSel(null); setPicked(null); },
+                analysisAutoOpen: focusAna === selQ?.code,
+                onClose: () => { setSel(null); setPicked(null); setFocusAna(null); },
               }) : null, [
                 // 编辑态 / 没填过持仓时各给一句提示，放在表格上方
                 editCode
@@ -3631,6 +3859,7 @@ window.__ModuleLoader__.load({
                     ? h("div", { className: "skd-meta skd-hold-hint" }, T("holdingsHint")) : null),
                 h(QuoteTable, {
                   list: watchRows, watch: true, onRemove: removeCode, onPick: setSel,
+                  onAnalyze: (code) => { setSel(code); setFocusAna(code); },
                   config: cur, editingCode: editCode, draft: editDraft,
                   onChange: (kind, code, field, raw) =>
                     setEditDraft((d) => applyDraftEdit(d, kind, code, field, raw)),
@@ -3917,6 +4146,13 @@ window.__ModuleLoader__.load({
        * 轮询 10 秒一次，只看宿主回值的话点了箭头要等好几秒才有反应，像没点上。
        */
       const [picked, setPicked] = React.useState(null);
+      /**
+       * 行尾「分析」点了哪一只。
+       *
+       * 只用来决定详情面板底部那块要不要默认展开；点行本身不设它，
+       * 所以「随手点一只看行情」不会被一整块分析表顶下去。
+       */
+      const [focusAna, setFocusAna] = React.useState(null);
       const drag = React.useRef(null);
       const downAt = React.useRef(null);
       const root = React.useRef(null);
@@ -4119,6 +4355,8 @@ window.__ModuleLoader__.load({
         dir,
         positionRows, rangeRatio, orderRatio, cashText, money,
         MonitorBar, DeskBoundary, DeskSafe, applyDraftEdit,
+        // 「能不能加仓」带 hook，只能挂载后再断言（见 tools/test-client.mjs）
+        CanAdd,
         // 逐行编辑的两个纯函数：草稿只装一行、保存按行合并。
         // 这两条逻辑埋在 DeskPage 闭包里就测不到，而它们决定「保存会不会顺手改掉别的行」。
         rowEditDraft, mergeEditDraft,
