@@ -183,6 +183,7 @@ window.__ModuleLoader__.load({
       snapshot: "快照",
       height: "最高板",
       stale: "陈旧",
+      stock: "名称",
       price: "现价",
       pct: "涨跌",
       turnover: "换手",
@@ -372,6 +373,7 @@ window.__ModuleLoader__.load({
       snapshot: "snapshot",
       height: "Top board",
       stale: "stale",
+      stock: "Name",
       price: "Last",
       pct: "Chg",
       turnover: "Turn",
@@ -1259,7 +1261,9 @@ window.__ModuleLoader__.load({
                 // 原来那列「连板」用户明确说不需要 —— 涨停的票本来就都是板，
                 // 他要看的是幅度和价格。连板高度挪到名称的 title 里还留着。
                 h("thead", null, h("tr", null,
-                  h("th", null, T("watchlist")),
+                  // 表头是「名称」不是「自选」：这一列列的是涨停/成分股名单，
+                  // 与自选表复用同一个词条会让读者以为这里也是自选股（曾如此）。
+                  h("th", null, T("stock")),
                   h("th", null, T("price")),
                   h("th", null, T("pct")))),
                 h("tbody", null, ...pageRows.map((r) => h("tr", { key: r.code },
@@ -1436,7 +1440,9 @@ window.__ModuleLoader__.load({
             rows.length > 0
               ? h("table", { className: "skd-tbl skd-btbl" },
                 h("thead", null, h("tr", null,
-                  h("th", null, T("watchlist")),
+                  // 表头是「名称」不是「自选」：这一列列的是涨停/成分股名单，
+                  // 与自选表复用同一个词条会让读者以为这里也是自选股（曾如此）。
+                  h("th", null, T("stock")),
                   h("th", null, T("price")),
                   h("th", null, T("pct")))),
                 h("tbody", null, ...rows.map((r) => h("tr", { key: r.code },
