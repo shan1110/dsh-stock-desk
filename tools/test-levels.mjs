@@ -9,7 +9,7 @@
 import { createMarket } from '../lib/market.js';
 import { analyze } from '../lib/indicators.js';
 import {
-  volumeBand, buildLevels, addPlan, exitPlan, triggerToday, MIN_RATIO, MIN_DISTANCE_ATR,
+  volumeBand, buildLevels, addPlan, exitPlan, triggerToday, holdPlan, MIN_RATIO, MIN_DISTANCE_ATR,
 } from '../lib/levels.js';
 
 let pass = 0, fail = 0;
@@ -149,6 +149,26 @@ console.log('\n【8】卖出三档');
   check('移动止盈给出两条均线', ex.trail?.ma10 === 10.3 && ex.trail?.ma20 === 10.1);
   const noCost = exitPlan({ levels, cost: null });
   check('没有成本价也能给出止损', noCost.stop !== null, String(noCost.stop));
+}
+
+console.log('\n【8b】持仓三态：止损优先，移动止盈只管浮盈');
+{
+  const levels = { close: 8.31, atr: 0.26, items: [], support: [], resistance: [] };
+  const exit = { stop: 7.69, stopId: 'S.lo20', trail: { ma10: 8.30, ma20: 8.38 } };
+  // 没破止损 → 拿着
+  const hold = holdPlan({ levels, exit, cost: 8.545, close: 8.31, floatPct: -2.75 });
+  check('没破止损 → 拿着不动', hold.state === 'hold', hold.state);
+  check('拿着时也报出止损位，让人知道线在哪', hold.stop === 7.69, String(hold.stop));
+  // 破止损 → 该走了，且不看形态
+  const stop = holdPlan({ levels, exit, cost: 8.545, close: 7.5, floatPct: -12.2 });
+  check('跌破止损 → 该走了（不再看别的）', stop.state === 'stop', stop.state);
+  // 浮盈 + 破 MA10 → 减半
+  const trim = holdPlan({ levels, exit, cost: 8.0, close: 8.25, floatPct: 3.12 });
+  check('浮盈且破 MA10 → 减半', trim.state === 'trim', trim.state);
+  // 浮亏 + 破 MA10 → 仍然拿着：同一句规则对浮亏仓位不成立
+  const lossNoTrim = holdPlan({ levels, exit, cost: 9.0, close: 8.25, floatPct: -8.3 });
+  check('浮亏且破 MA10 → 不减半（那不是止盈是割肉）', lossNoTrim.state === 'hold', lossNoTrim.state);
+  check('缺成本时不猜浮盈方向', holdPlan({ levels, exit, close: 8.25, floatPct: null }).inProfit === null);
 }
 
 console.log('\n【9】今日触发：两种形态两种条件');

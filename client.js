@@ -176,6 +176,24 @@ window.__ModuleLoader__.load({
       judgeTiny: "样本不足",
       eraAll: "·全历史",
       eraRecent: "·近 3 年",
+      holdTitle: "拿着还是走",
+      holdHold: "拿着不动",
+      holdTrim: "该减半",
+      holdStop: "该走了",
+      holdWhyHoldA: "只要收盘不跌破",
+      holdWhyHoldB: "就拿着；跌破再走",
+      holdWhyStopA: "收盘已经跌破止损位",
+      holdWhyStopB: "，按规则该走",
+      holdWhyTrimA: "有浮盈且收盘跌破 MA10",
+      holdWhyTrimB: "，按移动止盈减半",
+      costA: "你的成本",
+      costB: "，现在",
+      floatLoss: "浮亏",
+      floatGain: "浮盈",
+      unlockTitle: "什么条件下才能加",
+      unlockCaveat: "补齐一条之后，其余三条要在那天重新算 —— 今天成立不代表那天也成立。",
+      pathTitle: "历史上这种样子之后，中位涨跌幅",
+      pathWhy: "这是历史的路径形状，不是「该拿几天」的建议。",
       unitD: "日",
       unitW: "周",
       afterD: "个交易日后",
@@ -489,6 +507,24 @@ window.__ModuleLoader__.load({
       judgeTiny: "too few",
       eraAll: " · all history",
       eraRecent: " · recent 3y",
+      holdTitle: "Hold or exit",
+      holdHold: "Keep holding",
+      holdTrim: "Trim half",
+      holdStop: "Exit now",
+      holdWhyHoldA: "Hold while the close stays above",
+      holdWhyHoldB: "; exit if it breaks",
+      holdWhyStopA: "Close is below the stop at",
+      holdWhyStopB: ", the rule says exit",
+      holdWhyTrimA: "In profit and the close broke MA10 at",
+      holdWhyTrimB: ", trailing rule says trim half",
+      costA: "Your cost",
+      costB: ", now",
+      floatLoss: "down",
+      floatGain: "up",
+      unlockTitle: "What would unlock an add",
+      unlockCaveat: "If one gate flips, the other three must be recomputed that day — being true today does not carry over.",
+      pathTitle: "Median move after this pattern, by horizon",
+      pathWhy: "This is the historical path shape, not advice on how many days to hold.",
       unitD: "d",
       unitW: "w",
       afterD: " trading days later",
@@ -826,6 +862,7 @@ window.__ModuleLoader__.load({
 .skd-ana-chip { font-size: 12px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--dsw-alias-border-l1); }
 .skd-ana-yes { color: var(--dsw-alias-state-success-primary); border-color: currentColor; }
 .skd-ana-no { color: var(--dsw-alias-state-error-primary); border-color: currentColor; }
+.skd-ana-warn { color: var(--dsw-alias-state-warn-primary); }
 .skd-ana-reason { font-size: 12px; line-height: 1.65; margin-top: 8px; color: var(--dsw-alias-label-primary); }
 .skd-ana-gate { display: flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 3px 0; }
 .skd-ana-mark { width: 12px; flex: none; }
@@ -2692,6 +2729,51 @@ window.__ModuleLoader__.load({
         return h("div", { className: "skd-ana-reason" }, `${head}。${cmp}`);
       })();
 
+      // ---- 拿着还是走：持仓者先看这一块 ---------------------------------------
+      // 用户手上是有仓位的。只回答「该不该买」等于答偏了题。
+      const holdInfo = (() => {
+        const hp = d?.hold;
+        if (!hp) return null;
+        const money = Number.isFinite(hp.floatPct)
+          ? h("div", { className: "skd-ana-line" },
+            `${T("costA")} ${px(hp.cost)}${T("costB")}${hp.floatPct >= 0 ? T("floatGain") : T("floatLoss")} ${Math.abs(hp.floatPct).toFixed(2)}%`)
+          : null;
+        const why = hp.state === "stop"
+          ? `${T("holdWhyStopA")} ${px(hp.stop)}${T("holdWhyStopB")}`
+          : hp.state === "trim"
+            ? `${T("holdWhyTrimA")} ${px(hp.ma10)}${T("holdWhyTrimB")}`
+            : `${T("holdWhyHoldA")} ${px(hp.stop)}${T("holdWhyHoldB")}`;
+        const word = hp.state === "stop" ? T("holdStop") : hp.state === "trim" ? T("holdTrim") : T("holdHold");
+        return h("div", { className: "skd-ana-sec" },
+          h("div", { className: "skd-d-gt" }, T("holdTitle")),
+          h("div", { className: "skd-ana-line" },
+            h("b", { className: hp.state === "stop" ? "skd-ana-no" : hp.state === "trim" ? "skd-ana-warn" : "" }, word),
+            ` —— ${why}`),
+          money);
+      })();
+
+      // ---- 什么条件下才能加 ---------------------------------------------------
+      const unlock = d && open && (d.unlock ?? []).length > 0 ? h("div", { className: "skd-ana-sec" },
+        h("div", { className: "skd-d-gt" }, T("unlockTitle")),
+        ...d.unlock.map((u) => h("div", { className: "skd-ana-line", key: u.gate }, `· ${u.note}`)),
+        h("div", { className: "skd-meta" }, T("unlockCaveat"))) : null;
+
+      // ---- 历史上这种样子之后的路径 -------------------------------------------
+      // 用户问「推荐再拿几天」——这个不能答：测量用的持有期不是建议持有的期限。
+      // 能给的是每个持有期之后的中位涨跌幅，也就是路径形状，让人自己看。
+      const path = d && open && d.primary ? (() => {
+        const unit = d.primaryPeriod === "week" ? T("unitW") : T("unitD");
+        const same = d.rows.filter((r) => r.cond === d.primary && r.period === d.primaryPeriod
+          && (d.primaryPeriod === "week" ? r.era === "A" : r.era === null))
+          .slice().sort((a, b) => a.horizon - b.horizon);
+        if (same.length === 0) return null;
+        return h("div", { className: "skd-ana-sec" },
+          h("div", { className: "skd-d-gt" }, T("pathTitle")),
+          h("div", { className: "skd-ana-line" },
+            same.map((r) => `${r.horizon}${unit} ${Number.isFinite(r.median) ? `${r.median > 0 ? "+" : ""}${r.median.toFixed(2)}%` : "—"}`).join("　")),
+          h("div", { className: "skd-meta" }, T("pathWhy")));
+      })() : null;
+
       // ---- 第 2 层：四条门槛 ---------------------------------------------------
       const gate = (key, passed, detail) => h("div", { className: "skd-ana-gate", key },
         h("span", { className: `skd-ana-mark ${passed ? "skd-ana-yes" : "skd-ana-no"}` }, passed ? "✓" : "✗"),
@@ -2763,7 +2845,7 @@ window.__ModuleLoader__.load({
           ? h("div", { className: "skd-meta" }, `${T("anaFail")}：${st.err}`)
           : !d
             ? h("div", { className: "skd-meta" }, T("anaShort"))
-            : h("div", null, hitText, ruleText, reason, gates, zone, hist, lv,
+            : h("div", null, holdInfo, hitText, ruleText, reason, unlock, path, gates, zone, hist, lv,
               raw ? h("div", { className: "skd-meta skd-ana-why" }, T("anaWhy")) : null);
 
       const btns = [];

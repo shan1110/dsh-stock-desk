@@ -2569,6 +2569,8 @@ if (globalThis.__mountLive) {
         ratio: { value: 2.53, need: 2, note: '达到门槛' },
       },
     },
+    hold: { state: 'hold', close: 8.31, stop: 7.69, stopId: 'S.lo20', ma10: 8.3, ma20: 8.38, cost: 8.545, floatPct: -2.75, inProfit: false },
+    unlock: [{ gate: 'edge', need: 'day', candidates: ['C1'], note: '日线口径下历史上是正边缘的形态：C1' }],
     primary: 'C2',
     primaryPeriod: 'day',
     edgeRow: { id: 'C2.1d', cond: 'C2', horizon: 1, n: 83, up: 39, upPct: 39, ci: [29, 49], base: 47, judge: 'none' },
@@ -2576,6 +2578,8 @@ if (globalThis.__mountLive) {
       { id: 'C1.1d', cond: 'C1', horizon: 1, period: 'day', era: null, upPct: 64, n: 42, ci: [49, 77], base: 47, judge: 'pos' },
       { id: 'C2.1d', cond: 'C2', horizon: 1, period: 'day', era: null, upPct: 39, n: 83, ci: [29, 49], base: 47, judge: 'none' },
       { id: 'C3.10d', cond: 'C3', horizon: 10, period: 'day', era: null, upPct: 31, n: 29, ci: [17, 49], base: 43, judge: 'neg' },
+      { id: 'C2.3d', cond: 'C2', horizon: 3, period: 'day', era: null, upPct: 40, n: 48, median: -0.78, ci: [27, 54], base: 45, judge: 'none' },
+      { id: 'C2.5d', cond: 'C2', horizon: 5, period: 'day', era: null, upPct: 51, n: 39, median: 0.72, ci: [36, 66], base: 45, judge: 'none' },
     ],
     levels: { items: [{ id: 'S.lo20', price: 7.95, side: 'support', distPct: -4.33 }] },
   };
@@ -2592,6 +2596,9 @@ if (globalThis.__mountLive) {
     check('能不能加仓：默认给一句「为什么」，带样本数与对比',
       t1.includes('出现过') && t1.includes('83') && t1.includes('47%'));
     check('能不能加仓：默认不出表、也不出四条门槛', !t1.includes('历史形态频率') && !t1.includes('四条门槛'));
+    check('拿着还是走：默认就给出结论（拿着不动）', t1.includes('拿着还是走') && t1.includes('拿着不动'));
+    check('拿着还是走：给出触发条件（跌破 7.69 才走）', t1.includes('7.69'));
+    check('拿着还是走：带上你的成本与浮亏', t1.includes('8.5') && t1.includes('浮亏') && t1.includes('2.75'));
 
     const m2 = await globalThis.__mountLive(entry, 'CanAdd', { code: 'sz002739', autoOpen: true });
     const t2 = txt(m2);
@@ -2599,6 +2606,10 @@ if (globalThis.__mountLive) {
     check('能不能加仓：门槛逐条给 ✓/✗', (t2.match(/✓|✗/g) ?? []).length >= 4);
     check('能不能加仓：门槛给的是人话而不是代号', !t2.includes('S.lo20') || t2.includes('比现价低'));
     check('能不能加仓：展开时仍不出原始表', !t2.includes('历史形态频率'));
+    check('能不能加仓：展开后说清「什么条件下才能加」', t2.includes('什么条件下才能加') && t2.includes('C1'));
+    check('能不能加仓：解锁条件附带「其余三条要重算」的警告', t2.includes('重新算'));
+    check('能不能加仓：给历史路径而不是「再拿几天」的建议',
+      t2.includes('中位涨跌幅') && t2.includes('不是') );
 
     const m3 = m2;
     const rawBtn = btnByText(m3, '看全部数据');
