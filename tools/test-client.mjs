@@ -260,7 +260,7 @@ const { quoteDate, todayKey, nextRefreshSec, RefreshMeter, applyDraftEdit, Quote
   pnlOf, sortQuotes, PAGE_SIZE, dir,
   BreadthBar, LimitGrid, BoardGrid, BoardDrill, Kline, klineChart, minuteChart, chartPick, chartYTicks, CH,
   DEFAULT_BARS, MIN_BARS, ZOOM_STEP, zoomWindow, panWindow,
-  desk, DeskPage, DeskButton, Pill, SettingsTab, Settings, pillFlag } = mod.__test ?? {};
+  desk, DeskPage, DeskButton, Pill, SettingsTab, Settings, pillFlag, sectorHint } = mod.__test ?? {};
 check('导出了自检入口 __test',
   Boolean(QuoteDetail && QuoteTable && IndexStrip && fieldText && positionRows
     && BreadthBar && LimitGrid && BoardGrid && BoardDrill && desk && DeskPage && DeskButton && Pill));
@@ -2300,6 +2300,71 @@ check('详情面板与卡片边框之间留了横向间距（.skd-card-b 横向 
       (order[order.length - 1] ?? '').includes('均价03'), order.join('|'));
   } else {
     console.log('  SKIP  均价三列的交互用例（没有 mountLive 运行时）');
+  }
+}
+
+// ---- 自选表的所属板块 -------------------------------------------------------
+// 标签只写行业名（宽度有限），地域与概念进 title。可判定的四条：
+// 行业有没有画出来、title 里有没有地域和概念、ETF 会不会凭空长出一个板块、
+// 以及整张表的代码是不是一次带齐（不是逐只发请求）。
+{
+  if (globalThis.__mountLive) {
+    const tKey = `${todayKey().replace(/-/g, '')}101500`;
+    const mk = (code, name, kind = 'stock') => ({
+      code, name, kind, time: tKey,
+      fields: { price: 10, prevClose: 10, changePct: 0 },
+    });
+    const three = [mk('sh600001', '板块01'), mk('sz000002', '板块02'), mk('sh510500', '板块03', 'ETF')];
+    const oldFetch = globalThis.fetch;
+    const seenUrls = [];
+    globalThis.fetch = async (url) => {
+      seenUrls.push(String(url));
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          data: String(url).includes('/sectors')
+            ? {
+              sectors: {
+                sh600001: { industry: '乘用车', area: '重庆板块', concepts: ['华为汽车', '汽车整车'] },
+                sz000002: { industry: '影视院线', area: '北京板块', concepts: [] },
+                sh510500: { industry: null, area: null, concepts: [] },
+              },
+            }
+            : {},
+        }),
+      };
+    };
+    const m = await globalThis.__mountLive(entry, 'QuoteTable', {
+      list: three, watch: true, onPick: () => {},
+      config: { positions: {}, alerts: {} }, editingCode: null, draft: null,
+    });
+    globalThis.fetch = oldFetch;
+
+    // .skd-sector 在树里按行出现，顺序与列表一致；ETF 那只根本不产生节点
+    // 只数子节点里的字符串：texts() 会把 props.title 也算进来，而 title 正是口径说明
+    const onlyText = (n) => (typeof n === 'string' ? n : (Array.isArray(n) ? n.map(onlyText).join('')
+      : (n?.children ?? []).map(onlyText).join('')));
+    const tags = m.all((n) => n.props?.className === 'skd-sector');
+    check('只有填了行业的两只画了板块标签（ETF 不占位）', tags.length === 2,
+      `${tags.length} 个：${tags.map(onlyText).join(',')}`);
+    const tag01 = tags[0];
+    const tag02 = tags[1];
+    check('名称后面标出了所属板块（行业名）', onlyText(tag01) === '乘用车', onlyText(tag01));
+    check('板块标签的悬停说明里有地域和概念',
+      /重庆板块/.test(tag01?.props?.title ?? '') && /华为汽车/.test(tag01?.props?.title ?? ''),
+      tag01?.props?.title ?? '(无 title)');
+    check('只有行业没有概念时，title 里不出现空的「概念：」',
+      !/概念/.test(tag02?.props?.title ?? ''), tag02?.props?.title ?? '(无 title)');
+    check('/sectors 一次把整张表的代码都带上',
+      seenUrls.some((u) => decodeURIComponent(u).includes('/sectors?codes=sh600001,sz000002,sh510500')),
+      seenUrls.filter((u) => u.includes('/sectors')).join(' | '));
+
+    // 纯函数：三样都缺时不返回空串，而是回落到「这是什么」的说明
+    check('sectorHint 对空数据回落到说明文字，不返回空串',
+      typeof sectorHint({}) === 'string' && sectorHint({}).length > 0, sectorHint({}));
+  } else {
+    console.log('  SKIP  所属板块的用例（没有 mountLive 运行时）');
   }
 }
 

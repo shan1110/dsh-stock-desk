@@ -3,6 +3,7 @@
  * 用法：node tools/test-market.mjs
  */
 import { createMarket, INDEX_CODES, summarizeAvg, weekStartOf } from '../lib/market.js';
+import { parseStockSectors } from '../lib/eastmoney.js';
 import { createStore, normalizeConfig, defaultConfig } from '../lib/store.js';
 
 let pass = 0, fail = 0;
@@ -356,5 +357,34 @@ check('配置路径已解析', info.path.endsWith('config.json'));
     weekStartOf('2026-11-01') === '2026-10-26', weekStartOf('2026-11-01'));
 }
 
-console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);
-process.exitCode = fail === 0 ? 0 : 1;
+// 所属板块的解析：固定一份东财原样返回（2026-10-20 实测），逐字段对账
+{
+  // 这份 JSON 是 ulist 接口的真实返回，"-" 是东财表示「没有这一项」的写法
+  const raw = {
+    total: 3,
+    diff: [
+      { f12: '601127', f13: 1, f14: '赛力斯', f100: '乘用车', f102: '重庆板块', f103: '华为汽车,汽车整车,新能源车' },
+      { f12: '002739', f13: 0, f14: '儒意电影', f100: '影视院线', f102: '北京板块', f103: '-' },
+      { f12: '510500', f13: 1, f14: '中证500ETF南方', f100: '-', f102: '-', f103: '-' },
+    ],
+  };
+  const got = parseStockSectors(raw, ['sh601127', 'sz002739', 'sh510500']);
+  check('所属板块：行业名原样取回', got.sh601127?.industry === '乘用车', JSON.stringify(got.sh601127));
+  check('所属板块：地域单独一个字段', got.sh601127?.area === '重庆板块', got.sh601127?.area);
+  check('所属板块：概念按逗号拆成数组，不去重不改序',
+    JSON.stringify(got.sh601127?.concepts) === JSON.stringify(['华为汽车', '汽车整车', '新能源车']),
+    JSON.stringify(got.sh601127?.concepts));
+  check('所属板块：东财的 "-" 转成 null，不放字符串进去',
+    got.sh510500?.industry === null && got.sh510500?.area === null && got.sh510500.concepts.length === 0,
+    JSON.stringify(got.sh510500));
+  check('所属板块：没有概念的股票给出空数组而不是 null',
+    Array.isArray(got.sz002739?.concepts) && got.sz002739.concepts.length === 0,
+    JSON.stringify(got.sz002739));
+  // 深市与北交所的 f13 都是 0，只能靠入参的六位码还原完整代码；
+  // 传进来的代码表里没有时才退回「按市场号拼」，深市靠这个兜底
+  check('所属板块：深市代码按入参还原成 sz 前缀', Boolean(got.sz002739), JSON.stringify(Object.keys(got)));
+  const guess = parseStockSectors({ diff: [{ f12: '000712', f13: 0, f100: '证券', f102: '广东板块', f103: '-' }] }, []);
+  check('所属板块：入参没给代码时按市场号兜底（0 → sz）', Boolean(guess.sz000712), JSON.stringify(Object.keys(guess)));
+}
+
+console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);process.exitCode = fail === 0 ? 0 : 1;

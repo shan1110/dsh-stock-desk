@@ -218,6 +218,11 @@ window.__ModuleLoader__.load({
       hintAvgWeek: "本周（周一起，含今天）各交易日收盘价按成交量加权。不是 K 线上的「周线」——周线一根只有开高低收和量，没有均价这一项。",
       hintAvgMonth: "本月（1 号起，含今天）各交易日收盘价按成交量加权。口径同周均价。",
       avgUnavailable: "周/月均价取不到（日 K 没返回），不是 0",
+      // 名称后面那个小字标签：只写行业名，地域与概念放进 title
+      hintSector: "所属板块（东财行业分类）。ETF 没有行业归属，所以不标。",
+      sectorIndustry: "行业",
+      sectorArea: "地域",
+      sectorConcept: "概念",
       volume: "成交量",
       prevClose: "昨收",
       open: "今开",
@@ -438,6 +443,10 @@ window.__ModuleLoader__.load({
       hintAvgWeek: "This week (from Monday, including today): each day's close weighted by that day's volume. Not the weekly candle — a weekly bar only carries open/high/low/close and volume, no average.",
       hintAvgMonth: "Same rule as the weekly average, from the 1st of this month.",
       avgUnavailable: "Weekly/monthly average unavailable (no daily bars returned), not zero",
+      hintSector: "Industry of this stock (Eastmoney classification). ETFs have no industry, so none is shown.",
+      sectorIndustry: "Industry",
+      sectorArea: "Region",
+      sectorConcept: "Concepts",
       volume: "Volume",
       prevClose: "Prev close",
       open: "Open",
@@ -517,6 +526,10 @@ window.__ModuleLoader__.load({
 .skd-code{font-size:11px;color:var(--skd-dim)}
 .skd-tag{font-size:10px;padding:0 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);
   color:var(--skd-dim);line-height:16px}
+/* 所属板块：比 .skd-code 再淡一点，不让它跟股票名抢注意力；不换行，
+   否则「半导体设备」这种四字行业名会被挤成两行把行高顶开 */
+.skd-sector{font-size:10px;color:var(--skd-dim);opacity:.85;white-space:nowrap;
+  max-width:6.5em;overflow:hidden;text-overflow:ellipsis}
 /* 名称做成按钮：整行挂 onClick 键盘用户永远聚焦不到 */
 .skd-name-btn{appearance:none;border:0;background:none;padding:0;font:inherit;color:inherit;
   cursor:pointer;text-align:left;border-radius:5px}
@@ -1050,6 +1063,23 @@ window.__ModuleLoader__.load({
     function avgText(v, q) {
       const n = nOr(v);
       return n === null ? "—" : num(n, q?.kind === "ETF" ? 3 : 2);
+    }
+    /**
+     * 所属板块的悬停说明。
+     *
+     * 单元格里只放行业名（宽度有限），地域和概念放这里 —— 这两样太长，
+     * 铺在行里会把整张表撑成两屏。概念可能十几个，全列出来也不截断：
+     * 用户悬停就是为了看全。
+     */
+    function sectorHint(s) {
+      if (!s) return T("hintSector");
+      const lines = [];
+      if (s.industry) lines.push(`${T("sectorIndustry")}：${s.industry}`);
+      if (s.area) lines.push(`${T("sectorArea")}：${s.area}`);
+      if (Array.isArray(s.concepts) && s.concepts.length > 0) {
+        lines.push(`${T("sectorConcept")}：${s.concepts.join("、")}`);
+      }
+      return lines.length > 0 ? lines.join("\n") : T("hintSector");
     }
     function hhmmss(ms) {
       const n = nOr(ms);
@@ -1957,6 +1987,22 @@ window.__ModuleLoader__.load({
         return () => { alive = false; clearInterval(t); };
       }, [avgCodes]);
 
+      /**
+       * 所属板块：东财一个批量接口给全表，取不到就只是不标，不影响任何行情数字。
+       *
+       * 不跟着行情刷新：行业归属按季度才变，取一次就够；这里也不挂定时器，
+       * 自选增删（avgCodes 变化）时才重取。同样必须放在空列表 return 之前。
+       */
+      const [sectors, setSectors] = React.useState({});
+      React.useEffect(() => {
+        if (!avgCodes) return undefined;
+        let alive = true;
+        api(`/sectors?codes=${encodeURIComponent(avgCodes)}`)
+          .then((r) => { if (alive) setSectors(r?.sectors ?? {}); })
+          .catch(() => { /* 拿不到就不标板块 */ });
+        return () => { alive = false; };
+      }, [avgCodes]);
+
       if (!Array.isArray(list) || list.length === 0) return h(Msg, { text: T("empty") });
       // 表格渲染时取一次「今天」，整张表用同一个基准，避免逐行调用跨过零点
       const today = todayKey();
@@ -1978,10 +2024,10 @@ window.__ModuleLoader__.load({
             nOr(one[field]) === null ? "—" : String(nOr(one[field])));
       };
 
-      // 每行先算好一份「行情 + 持仓 + 盈亏 + 周月均价」，排序和渲染都读它
+      // 每行先算好一份「行情 + 持仓 + 盈亏 + 周月均价 + 所属板块」，排序和渲染都读它
       const rows = list.map((q) => {
         const one = rowOf(q.code, "pos");
-        return { q, f: F(q), one, avg: avg[q.code], ...pnlOf(q, one, today) };
+        return { q, f: F(q), one, avg: avg[q.code], sector: sectors[q.code], ...pnlOf(q, one, today) };
       });
       const sorted = sortQuotes(rows, sort.key, sort.dir);
       const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
@@ -2053,6 +2099,11 @@ window.__ModuleLoader__.load({
           },
             h("span", null, q.name ?? q.code),
             q.kind ? h("span", { className: "skd-tag" }, q.kind) : null,
+            // 所属板块：只放行业名（ETF 没有，不占位），地域与概念在 title 里。
+            // 不放进按钮内部的话点击会展开明细，所以刻意留在按钮里 —— 它是这只票的属性
+            it.sector?.industry
+              ? h("span", { className: "skd-sector", title: sectorHint(it.sector) }, it.sector.industry)
+              : null,
             h("span", { className: "skd-code" }, q.code),
             // 行情日期不是今天 → 明确标出来，别让昨天的涨幅冒充今天的盈亏
             it.stale
@@ -3758,6 +3809,8 @@ window.__ModuleLoader__.load({
       apply,
       __test: {
         QuoteTable, QuoteDetail, IndexStrip, fieldText, stampText,
+        // 所属板块的悬停说明：拼装逻辑是纯函数，直接喂一份假数据就能断言格式
+        sectorHint, avgText,
         // 自选表的排序与盈亏：三者都是纯函数，能直接喂数据断言，
         // 不必挂载组件 —— 「排序和显示用的是同一套算法」这条才验得实。
         pnlOf, isBoughtToday, sortQuotes, sortVal, SORT_KEYS, PAGE_SIZE,
