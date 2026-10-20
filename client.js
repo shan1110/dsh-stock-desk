@@ -1693,16 +1693,20 @@ window.__ModuleLoader__.load({
         return () => { alive = false; };
       }, [poolKind, tries]);
 
-      // 所有 hook 必须在第一个 return 之前
+      // 换池子 / 换板高时回到第 1 页，否则会拿着上一批的页码去切新名单
+      React.useEffect(() => { setLp(0); }, [poolKind, drill?.height]);
+
+      // 所有 hook 必须在第一个 return 之前 —— 这条注释以前就写在这里，但下面的 return
+      // 被放在了上面那个 effect 的**前面**：数据没回来时只调了 6 个 hook，数据回来后调 7 个，
+      // React 直接抛 #310（Rendered more hooks than during the previous render）。
+      // 表现极具误导性：第一次点行情台必崩，切走再点回来就正常 ——
+      // 因为第二次数据已在缓存里，第一帧就走完整路径，hook 数始终一致。
       if (!lu) return h(Msg, { text: `${T("limitUp")}：${T("unavailable")}`, hint: T("unavailableHint") });
 
       const cont = rows.reduce((a, r) => a + (nOr(r.number) ?? 0), 0);
       const first = Math.max(0, (nOr(lu.num) ?? 0) - cont);
       // 跌停只认本地扫描的家数：它才是「点进去那些行」的条数
       const ldCount = nOr(pools?.limitDown);
-
-      // 换池子 / 换板高时回到第 1 页，否则会拿着上一批的页码去切新名单
-      React.useEffect(() => { setLp(0); }, [poolKind, drill?.height]);
 
       const toggle = (next) => {
         // 换池子/换板高时把展开的个股一并收起，否则会继续展示上一个池子里的那只票

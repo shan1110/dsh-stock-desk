@@ -2670,6 +2670,40 @@ if (globalThis.__mountLive) {
     globalThis.fetch = realFetch;
   }
 }
-// ---- 结论 -----------------------------------------------------------------
+// ---- 静态规则：hook 必须在组件内第一个 return 之前 ---------------------------
+// 这条规则以前只写在注释里，于是 LimitGrid 把它违反了很久没人发现：
+// 「数据没回来」时调 6 个 hook、「数据回来」后调 7 个，React 抛 #310。
+// 症状是「第一次点行情台必崩、切走再点回来正常」，六轮排查都以为是环境问题。
+//
+// 关键点：组件级 return 有两种写法 —— 行首 `return`，以及 `if (...) return ...` 一行式。
+// 只按行首 return 扫会漏掉后者，这正是当时漏网的原因。
+{
+  const src = readFileSync(join(ROOT, 'client.js'), 'utf8');
+  const lines = src.split('\n');
+  const comps = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^ {4}function\s+([A-Za-z0-9_]+)\s*\(/);
+    if (m) comps.push({ name: m[1], start: i, end: lines.length });
+  }
+  for (let k = 0; k < comps.length - 1; k++) comps[k].end = comps[k + 1].start;
+  const RH = /^\s{6}(?:if\s*\(.*\)\s*|else\s+)?return\b/;
+  const HOOK = /^\s{6}.*React\.use[A-Z]/;
+  const bad = [];
+  for (const c of comps) {
+    const hooks = [];
+    const rets = [];
+    for (let i = c.start; i < c.end; i++) {
+      if (HOOK.test(lines[i])) hooks.push(i);
+      if (RH.test(lines[i])) rets.push(i);
+    }
+    if (hooks.length === 0) continue;
+    const lastHook = hooks[hooks.length - 1];
+    if (rets.some((r) => r < lastHook)) bad.push(`${c.name}@L${c.start + 1}`);
+  }
+  check('每个组件内所有 hook 都在第一个 return 之前（含 if(...) return 写法）',
+    bad.length === 0, bad.join(', '));
+}
+
+// ---- 结论 -----------------------------------------------------------------// ---- 结论 -----------------------------------------------------------------
 console.log(`\n合计 ${pass} 通过 / ${fail} 失败`);
 process.exitCode = fail === 0 ? 0 : 1;
