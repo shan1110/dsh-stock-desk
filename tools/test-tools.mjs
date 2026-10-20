@@ -162,12 +162,12 @@ check('K 线含区间统计', /区间 .* → .*/.test(tKline ?? ''));
 check('单股分析含技术指标与排列', /排列 .+/.test(tAnalysis ?? ''), (tAnalysis ?? '').split('\n')[1]);
 check('单股分析含历史频率表与基准', /【历史形态频率】/.test(tAnalysis ?? '') && /基准：/.test(tAnalysis ?? ''));
 check('单股分析含位置表', /【位置表】/.test(tAnalysis ?? '') && /S\.lo20|R\.ma20/.test(tAnalysis ?? ''));
-check('单股分析含四条判定', /【四条判定】/.test(tAnalysis ?? '') && /四条/.test(tAnalysis ?? ''));
+check('单股分析含四条判定', /【能不能加仓】/.test(tAnalysis ?? '') && /四条/.test(tAnalysis ?? ''));
 check('单股分析的四条判定逐条给了成立/不成立与原因',
   (tAnalysis ?? '').match(/\d\)\s+\S+\s*(成立|不成立)\s+\S/g)?.length === 4,
   String((tAnalysis ?? '').match(/\d\)\s+\S+\s+(成立|不成立)/g)?.length));
 check('单股分析不给结论性指令，只给判定位与编号',
-  /位置区|没有满足全部四条/.test(tAnalysis ?? '') && !/建议买入|应该买|立即买/.test(tAnalysis ?? ''));
+  /加仓位|没有符合条件的加仓位/.test(tAnalysis ?? '') && !/建议买入|应该买|立即买/.test(tAnalysis ?? ''));
 check('单股分析写明历史频率不等于未来概率', /历史频率不等于未来概率/.test(tAnalysis ?? ''));
 check('自选工具给出配置文件路径', /配置文件 .*config\.json/.test(tWatch ?? ''));
 check('自选工具不带报价时不编时间', !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(tWatch ?? ''));
