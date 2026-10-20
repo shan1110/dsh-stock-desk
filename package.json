@@ -33,6 +33,14 @@
   ],
   "author": "cai shan",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shan1110/dsh-stock-desk.git"
+  },
+  "homepage": "https://github.com/shan1110/dsh-stock-desk#readme",
+  "bugs": {
+    "url": "https://github.com/shan1110/dsh-stock-desk/issues"
+  },
   "engines": {
     "node": ">=24"
   },
