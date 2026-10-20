@@ -2523,8 +2523,9 @@ window.__ModuleLoader__.load({
         const isMin = period === "min";
         const url = isMin
           ? `/minute?code=${encodeURIComponent(code)}`
-          // 一次抓满：缩放只在本地切窗口，不再回服务器要数据
-          : `/kline?code=${encodeURIComponent(code)}&period=${period}&limit=250`;
+          // 一次抓满：缩放只在本地切窗口，不再回服务器要数据。
+          // 800 是 /kline 的上限（周线因此能覆盖十年），多于初始视窗的部分靠平移看到。
+          : `/kline?code=${encodeURIComponent(code)}&period=${period}&limit=800`;
         api(url)
           .then((r) => {
             if (!alive) return;
