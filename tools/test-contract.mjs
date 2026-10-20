@@ -315,6 +315,18 @@ for (const code of ['sh000001', 'sz399006', 'sh000688']) {
     `candles=${k.body?.data?.candles?.length ?? '-'}`);
 }
 
+// limit 的上限是 800，不是 250。这条以前没有断言，于是 250 卡了很久没人发现：
+// 数据源本身支持腾讯 800 根 / 东财 500 根，是路由自己把请求截断的。
+// 用 002739（2015 年上市，日线足够长）验，若被截到 250 这条必红。
+{
+  const k = await get('/kline?code=sz002739&period=day&limit=800');
+  const n = k.body?.data?.candles?.length ?? 0;
+  check('/kline 的 limit 上限是 800 而不是 250', n > 250, `实得 ${n} 根`);
+  const w = await get('/kline?code=sz002739&period=week&limit=800');
+  const wn = w.body?.data?.candles?.length ?? 0;
+  check('周线也能取到 250 根以上（覆盖十年股性）', wn > 250, `实得 ${wn} 根`);
+}
+
 console.log(`\n【4.4b】GET /avg —— 自选表的周/月均价\n`);
 // 自选表把换手、成交额换成了三条均价。日均价走实时报价的 avgPrice，
 // 周/月走这个接口；它断了的话界面上那两列永远是「—」，而且不会有任何报错。
